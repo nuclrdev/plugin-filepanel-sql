@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "version": "${project.version}",
+  "platformSdkVersion": "${platform.sdk.version}",
+  "plugins": [
+    {
+      "class": "dev.nuclr.plugin.core.panel.sql.SqlFilePanelPlugin",
+      "type": "FilePanel",
+      "id": "dev.nuclr.plugin.core.panel.sql",
+      "name": "SQL Explorer",
+      "version": "${project.version}",
+      "description": "Browse a SQL database as a read-only virtual filesystem: schemas, tables and views as folders, rows as files.",
+      "author": "Nuclr Development Team",
+      "license": "Apache-2.0",
+      "website": "https://nuclr.dev",
+      "pageUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
+      "docUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
+      "developer": "Official",
+      "singleton": false
+    },
+    {
+      "class": "dev.nuclr.plugin.core.panel.sql.SqlRowQuickViewPlugin",
+      "type": "QuickView",
+      "id": "dev.nuclr.plugin.core.panel.sql.quickview",
+      "name": "SQL Row Viewer",
+      "version": "${project.version}",
+      "description": "Field-list / JSON preview for a SQL row, and a paginated grid preview for a table or view.",
+      "author": "Nuclr Development Team",
+      "license": "Apache-2.0",
+      "website": "https://nuclr.dev",
+      "pageUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
+      "docUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
+      "developer": "Official",
+      "singleton": true,
+      "priority": 5
+    }
+  ]
+}
