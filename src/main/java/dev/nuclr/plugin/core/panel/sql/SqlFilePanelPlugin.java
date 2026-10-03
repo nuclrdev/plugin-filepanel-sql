@@ -69,6 +69,8 @@ import dev.nuclr.plugin.core.panel.sql.connection.ConnectionProfile;
 import dev.nuclr.plugin.core.panel.sql.connection.ConnectionProfileStore;
 import dev.nuclr.plugin.core.panel.sql.connection.ConnectionRegistry;
 import dev.nuclr.plugin.core.panel.sql.connection.CredentialStore;
+import dev.nuclr.plugin.core.panel.sql.connection.Schemas;
+import dev.nuclr.plugin.core.panel.sql.actions.SqlActions;
 import dev.nuclr.plugin.core.panel.sql.csv.CsvExport;
 import dev.nuclr.plugin.core.panel.sql.panel.ConnectionEditorDialog;
 import dev.nuclr.plugin.core.panel.sql.resource.ResourceKind;
@@ -134,6 +136,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 	private ConnectionProfileStore profileStore;
 	private CredentialStore credentialStore;
 	private ConnectionRegistry connectionRegistry;
+	private SqlActions actions;
 
 	private volatile boolean focused;
 	private volatile SqlNuclrResource currentResource;
@@ -148,6 +151,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		this.profileStore = new ConnectionProfileStore(context.getSettings());
 		this.credentialStore = new CredentialStore(context.getCredentialStore());
 		this.connectionRegistry = new ConnectionRegistry();
+		this.actions = new SqlActions(profileStore, this::actionSession, connectionRegistry::disconnect);
 		this.currentResource = SqlNuclrResource.explorerRoot();
 		log.info("SQL Explorer panel plugin loaded");
 	}
@@ -298,29 +302,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			sink.add(up);
 		}
 
-		List<String> schemaNames = new ArrayList<>();
-		try (ResultSet rs = connection.getMetaData().getSchemas()) {
-			while (rs.next()) {
-				if (cancelled != null && cancelled.get()) {
-					return data;
-				}
-				schemaNames.add(rs.getString("TABLE_SCHEM"));
-			}
-		} catch (SQLException e) {
-			log.debug("getSchemas() unavailable for {}: {}", profile.getName(), e.getMessage());
-		}
-		if (schemaNames.isEmpty()) {
-			// Drivers with no real schema concept, or where the database already is the
-			// schema (MySQL): fall back to the connection's own catalog.
-			String catalog = null;
-			try {
-				catalog = connection.getCatalog();
-			} catch (SQLException ignored) {
-				// fall through to the "main" default below
-			}
-			schemaNames.add(catalog != null && !catalog.isBlank() ? catalog : "main");
-		}
-
+		List<String> schemaNames = Schemas.names(connection, () -> cancelled != null && cancelled.get());
 		for (String schemaName : schemaNames) {
 			if (cancelled != null && cancelled.get()) {
 				break;
@@ -362,12 +344,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 
 		Map<String, Long> rowCounts = TableStats.estimate(connection, profile.getJdbcUrl(), schemaName);
 
-		String catalog = null;
-		try {
-			catalog = connection.getCatalog();
-		} catch (SQLException ignored) {
-			// left null; most drivers accept a null catalog filter fine
-		}
+		String catalog = Schemas.catalog(connection);
 
 		DatabaseMetaData meta = connection.getMetaData();
 		try (ResultSet rs = meta.getTables(catalog, schemaName, "%", new String[] { "TABLE", "VIEW" })) {
@@ -526,6 +503,18 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			credentialStore.savePassword(profileId, password.toCharArray());
 		}
 		return session;
+	}
+
+	/**
+	 * {@link #ensureConnected} for an action: the same stored password or prompt, with a
+	 * dismissed prompt reported as {@code null} rather than an exception.
+	 */
+	private ConnectionRegistry.Session actionSession(ConnectionProfile profile) throws Exception {
+		try {
+			return ensureConnected(profile.getId());
+		} catch (ConnectCancelled e) {
+			return null;
+		}
 	}
 
 	// ------------------------------------------------------------------
@@ -719,6 +708,15 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 	@Override
 	public void act(BaseNuclrPlugin other, String actionType, List<NuclrResource> selectedResources,
 			NuclrResource focusedResource, Map<String, Object> data, NuclrPluginCallback callback) {
+
+		// Actions declared in actions.json (agents, command palette). They need no pane,
+		// selection or open resource, so they run the same on the headless instance the
+		// commander keeps for them - whose connections are its own, never a pane's.
+		if (SqlActions.handles(actionType)) {
+			actions.run(actionType, data, callback);
+			return;
+		}
+
 		switch (actionType) {
 			case ActionNewConnection -> handleNewConnection(data);
 			case ActionEditConnection -> handleEditConnection(focusedResource, data);

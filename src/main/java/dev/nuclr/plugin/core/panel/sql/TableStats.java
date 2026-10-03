@@ -33,12 +33,12 @@ import lombok.extern.slf4j.Slf4j;
  * query fails.
  */
 @Slf4j
-final class TableStats {
+public final class TableStats {
 
 	private TableStats() {
 	}
 
-	static Map<String, Long> estimate(Connection connection, String jdbcUrl, String schemaName) {
+	public static Map<String, Long> estimate(Connection connection, String jdbcUrl, String schemaName) {
 		if (jdbcUrl == null) {
 			return Map.of();
 		}

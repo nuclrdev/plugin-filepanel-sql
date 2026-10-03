@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "actions": [
+    {
+      "id": "sql.connections.list",
+      "title": "List saved database connections",
+      "summary": "Lists the database connections saved in the SQL panel: id, name, driver, JDBC URL (secrets masked) and user. Never returns passwords.",
+      "doc": "actions/sql.connections.list.md",
+      "class": "read",
+      "exposure": ["agent", "palette"],
+      "input": { "type": "object", "properties": {} },
+      "output": {
+        "type": "object",
+        "properties": {
+          "connections": {
+            "type": "array",
+            "description": "Saved connections, sorted by name",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id":       { "type": "string", "description": "Stable id; always unambiguous as a 'connection' argument" },
+                "name":     { "type": "string", "description": "Display name; also accepted as a 'connection' argument" },
+                "driver":   { "type": "string", "description": "Database driver, e.g. PostgreSQL" },
+                "url":      { "type": "string", "description": "JDBC URL with any password-like parts replaced by ***" },
+                "username": { "type": "string", "description": "Login user, or null if the URL carries its own" }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "sql.tables.list",
+      "title": "List tables in a database",
+      "summary": "Lists the tables and views of a saved connection, in one schema or all user schemas, with estimated row counts where the database offers them.",
+      "doc": "actions/sql.tables.list.md",
+      "class": "read",
+      "exposure": ["agent", "palette"],
+      "input": {
+        "type": "object",
+        "required": ["connection"],
+        "properties": {
+          "connection": { "type": "string", "description": "Saved connection id or name (see sql.connections.list)" },
+          "schema":     { "type": "string", "description": "Schema to list; omitted means every schema except the database's own system ones" },
+          "nameLike":   { "type": "string", "description": "SQL LIKE pattern the table name must match, e.g. 'order%'" },
+          "limit":      { "type": "integer", "minimum": 1, "maximum": 5000, "default": 500, "description": "Most tables to return" }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "schemas": { "type": "array", "items": { "type": "string" }, "description": "Every schema of the connection, system ones included" },
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "schema":        { "type": "string" },
+                "name":          { "type": "string" },
+                "type":          { "type": "string", "enum": ["table", "view"] },
+                "estimatedRows": { "type": "integer", "description": "The database's own estimate, or null where it has none" }
+              }
+            }
+          },
+          "total":     { "type": "integer", "description": "Tables found before the limit" },
+          "truncated": { "type": "boolean", "description": "Whether the limit cut the list" }
+        }
+      }
+    },
+    {
+      "id": "sql.table.describe",
+      "title": "Describe a table",
+      "summary": "Returns a table's or view's columns (type, nullability, default), primary key, foreign keys and estimated row count; optionally counts its rows exactly.",
+      "doc": "actions/sql.table.describe.md",
+      "class": "read",
+      "exposure": ["agent", "palette"],
+      "input": {
+        "type": "object",
+        "required": ["connection", "table"],
+        "properties": {
+          "connection": { "type": "string", "description": "Saved connection id or name" },
+          "schema":     { "type": "string", "description": "Schema of the table; may be omitted when the database has only one user schema" },
+          "table":      { "type": "string", "description": "Table or view name" },
+          "countRows":  { "type": "boolean", "default": false, "description": "Also run SELECT COUNT(*); slow on large tables" }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "schema": { "type": "string" },
+          "table":  { "type": "string", "description": "The name as the database spells it" },
+          "type":   { "type": "string", "enum": ["table", "view"] },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name":               { "type": "string" },
+                "type":               { "type": "string", "description": "The database's type name, e.g. varchar" },
+                "size":               { "type": "integer", "description": "Length or precision, where it applies" },
+                "nullable":           { "type": "boolean" },
+                "default":            { "type": "string", "description": "Default value expression, or null" },
+                "autoIncrement":      { "type": "boolean" },
+                "primaryKeyPosition": { "type": "integer", "description": "1-based position in the primary key, or null" },
+                "comment":            { "type": "string", "description": "Column comment, or null" }
+              }
+            }
+          },
+          "primaryKey": { "type": "array", "items": { "type": "string" }, "description": "Primary key columns in key order" },
+          "foreignKeys": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "column":           { "type": "string" },
+                "referencesSchema": { "type": "string" },
+                "referencesTable":  { "type": "string" },
+                "referencesColumn": { "type": "string" }
+              }
+            }
+          },
+          "estimatedRows": { "type": "integer", "description": "The database's own estimate, or null" },
+          "rowCount":      { "type": "integer", "description": "Exact row count; only when countRows was true" }
+        }
+      }
+    },
+    {
+      "id": "sql.rows.read",
+      "title": "Read rows from a table",
+      "summary": "Reads rows from one table or view, optionally choosing columns, filtering by column equality and sorting. Builds the SELECT itself, so it cannot change anything.",
+      "doc": "actions/sql.rows.read.md",
+      "class": "read",
+      "exposure": ["agent", "palette"],
+      "input": {
+        "type": "object",
+        "required": ["connection", "table"],
+        "properties": {
+          "connection": { "type": "string", "description": "Saved connection id or name" },
+          "schema":     { "type": "string", "description": "Schema of the table; may be omitted when the database has only one user schema" },
+          "table":      { "type": "string", "description": "Table or view name" },
+          "columns":    { "type": "array", "items": { "type": "string" }, "description": "Columns to return, in this order; omitted means all" },
+          "where":      { "type": "object", "description": "Column name to value; rows must equal every value (null means IS NULL). For other conditions use sql.query" },
+          "orderBy":    { "type": "array", "items": { "type": "string" }, "description": "Columns to sort by; prefix a name with '-' for descending, e.g. ['-created_at', 'id']" },
+          "limit":      { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100, "description": "Most rows to return" },
+          "offset":     { "type": "integer", "minimum": 0, "maximum": 100000, "default": 0, "description": "Rows to skip first; pair with orderBy for stable pages" }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "schema":    { "type": "string" },
+          "table":     { "type": "string" },
+          "columns":   { "type": "array", "items": { "type": "string" } },
+          "rows":      { "type": "array", "items": { "type": "array" }, "description": "One list of values per row, in column order" },
+          "offset":    { "type": "integer" },
+          "truncated": { "type": "boolean", "description": "Whether more rows follow; read on with offset + rows returned" }
+        }
+      }
+    },
+    {
+      "id": "sql.query",
+      "title": "Run SQL on a database",
+      "summary": "Runs any SQL - queries, updates, DDL - on a saved connection with auto-commit on, and returns each result set or update count.",
+      "doc": "actions/sql.query.md",
+      "class": "unrestricted",
+      "exposure": ["agent"],
+      "input": {
+        "type": "object",
+        "required": ["connection", "sql"],
+        "properties": {
+          "connection":     { "type": "string", "description": "Saved connection id or name" },
+          "sql":            { "type": "string", "description": "The SQL to run, in the database's own dialect" },
+          "maxRows":        { "type": "integer", "minimum": 1, "maximum": 5000, "default": 200, "description": "Most rows to return per result set" },
+          "timeoutSeconds": { "type": "integer", "minimum": 1, "maximum": 3600, "default": 60, "description": "The database stops the statement after this long" }
+        }
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "One entry per result, in order: rows for a query, an update count for anything else",
+            "items": {
+              "type": "object",
+              "properties": {
+                "columns":     { "type": "array", "items": { "type": "string" } },
+                "rows":        { "type": "array", "items": { "type": "array" }, "description": "One list of values per row, in column order" },
+                "truncated":   { "type": "boolean", "description": "Whether maxRows or the size budget cut the rows" },
+                "updateCount": { "type": "integer", "description": "Rows changed, for a statement that returns no rows" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
