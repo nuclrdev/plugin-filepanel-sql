@@ -668,7 +668,7 @@ public final class SqlActions {
 		String names = profiles.stream().map(ConnectionProfile::getName).collect(Collectors.joining(", "));
 		if (byName.isEmpty()) {
 			throw new ActionException("No saved connection '" + reference + "'. Saved connections: "
-					+ (names.isEmpty() ? "none - add one in the SQL panel first." : names + "."));
+					+ (names.isEmpty() ? "none - ask the user to add one in Commander, under Configs → Connections." : names + "."));
 		}
 		throw new ActionException("'" + reference + "' matches " + byName.size()
 				+ " saved connections; use the id from sql.connections.list instead.");

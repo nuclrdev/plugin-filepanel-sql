@@ -4,7 +4,7 @@
     {
       "id": "sql.connections.list",
       "title": "List saved database connections",
-      "summary": "Lists the database connections saved in the SQL panel: id, name, driver, JDBC URL (secrets masked) and user. Never returns passwords.",
+      "summary": "Lists the database connections saved in the SQL panel: id, name, driver, JDBC URL (secrets masked) and user. Never returns passwords. If none is saved, ask the user to add one in Commander, under Configs → Connections.",
       "doc": "actions/sql.connections.list.md",
       "class": "read",
       "exposure": ["agent", "palette"],

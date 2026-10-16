@@ -5,7 +5,7 @@ first: every other `sql.*` action names its connection by the `id` or `name`
 returned here.
 
 - Only saved connections can be used. To work with a new database, ask the user to
-  add it in the SQL panel (F7 on the connection list).
+  add it in Commander, under Configs → Connections.
 - A connection is opened on first use. If it needs a password that is not stored,
   **the user** is asked in Commander — never you. If they dismiss the prompt, the
   action fails and says so.
