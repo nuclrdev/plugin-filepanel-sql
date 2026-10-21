@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
 import java.awt.Toolkit;
@@ -147,6 +149,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 
 	@Override
 	public void preinit(NuclrPluginContext context) {
+		Messages.use(context.getLocale());
 		this.context = context;
 		this.profileStore = new ConnectionProfileStore(context.getSettings());
 		this.credentialStore = new CredentialStore(context.getCredentialStore());
@@ -251,7 +254,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			return new NuclrResourceData();
 		} catch (Exception e) {
 			log.error("Failed to open SQL resource {}: {}", sql.getFullPath(), e.getMessage(), e);
-			showErrorDialog("SQL Explorer", "Could not open \"" + sql.getName() + "\": " + e.getMessage());
+			showErrorDialog("SQL Explorer", tr("error.open", sql.getName(), e.getMessage()));
 			return new NuclrResourceData();
 		}
 	}
@@ -268,7 +271,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		}
 		for (ConnectionProfile profile : profileStore.loadAll()) {
 			var entry = SqlNuclrResource.connection(profile);
-			entry.getMetadata().put("Status", connectionRegistry.isConnected(profile.getId()) ? "Connected" : "");
+			entry.getMetadata().put("Status", connectionRegistry.isConnected(profile.getId()) ? tr("status.connected") : "");
 			data.getEntries().add(entry);
 			if (sink != null) {
 				sink.add(entry);
@@ -358,7 +361,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				var entry = SqlNuclrResource.table(
 						profileId, schemaName, tableName, isView, quotedRef,
 						() -> connectionRegistry.getOpenConnection(profileId));
-				entry.getMetadata().put("Type", isView ? "View" : "Table");
+				entry.getMetadata().put("Type", isView ? tr("type.view") : tr("type.table"));
 				Long count = rowCounts.get(tableName);
 				if (count != null) {
 					entry.getMetadata().put("Size", count.toString());
@@ -565,9 +568,11 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				.filter(r -> r instanceof SqlNuclrResource sql && sql.getKind() == ResourceKind.ROW)
 				.count();
 		if (rows > 0) {
-			return rows + (rows == 1 ? " row selected" : " rows selected");
+			return rows == 1 ? tr("summary.rows.one") : tr("summary.rows.many", String.valueOf(rows));
 		}
-		return selectedResources.size() + (selectedResources.size() == 1 ? " item selected" : " items selected");
+		return selectedResources.size() == 1
+				? tr("summary.items.one")
+				: tr("summary.items.many", String.valueOf(selectedResources.size()));
 	}
 
 	private String connectionDisplayName(String profileId) {
@@ -621,21 +626,21 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			return;
 		}
 		switch (here.getKind()) {
-			case EXPLORER_ROOT -> items.add(sort("Name", "Ctrl+F3", "name", "Name"));
-			case CONNECTION -> items.add(sort("Name", "Ctrl+F3", "name", "Name"));
+			case EXPLORER_ROOT -> items.add(sort(tr("sort.name"), "Ctrl+F3", "name", "Name"));
+			case CONNECTION -> items.add(sort(tr("sort.name"), "Ctrl+F3", "name", "Name"));
 			case SCHEMA -> {
-				items.add(sort("Name", "Ctrl+F3", "name", "Name"));
-				items.add(sort("Size", "Ctrl+F6", "size", "Size"));
+				items.add(sort(tr("sort.name"), "Ctrl+F3", "name", "Name"));
+				items.add(sort(tr("sort.size"), "Ctrl+F6", "size", "Size"));
 			}
 			// A row's name is its key, and the listing's columns are the table's own, so
 			// there is no column for the commander's generic comparators to point at.
-			case TABLE, VIEW -> items.add(sort("Key", "Ctrl+F3", "name", null));
+			case TABLE, VIEW -> items.add(sort(tr("sort.key"), "Ctrl+F3", "name", null));
 			default -> {
 				return;
 			}
 		}
-		items.add(sort("Unsort", "Ctrl+F7", "unsorted", null));
-		items.add(sort("Sort", "Ctrl+F12", "dialog", null));
+		items.add(sort(tr("sort.unsort"), "Ctrl+F7", "unsorted", null));
+		items.add(sort(tr("sort.dialog"), "Ctrl+F12", "dialog", null));
 	}
 
 	@Override
@@ -648,15 +653,15 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		}
 		switch (target.getKind()) {
 			case EXPLORER_ROOT, CONNECTION -> {
-				items.add(new NuclrMenuResource("New Connection", "F7", ActionNewConnection));
+				items.add(new NuclrMenuResource(tr("menu.new.connection"), "F7", ActionNewConnection));
 				// Editing and deleting need a connection to act on, and the cursor is what
 				// names it — offering them with nothing selected would only bind dead keys.
 				if (isConnectionFocused(resource)) {
-					items.add(new NuclrMenuResource("Edit Connection", "F4", ActionEditConnection));
-					items.add(new NuclrMenuResource("Delete Connection", "F8", ActionDeleteConnection));
+					items.add(new NuclrMenuResource(tr("menu.edit.connection"), "F4", ActionEditConnection));
+					items.add(new NuclrMenuResource(tr("menu.delete.connection"), "F8", ActionDeleteConnection));
 				}
 			}
-			case TABLE, VIEW, ROW -> items.add(new NuclrMenuResource("Copy", "F5", ActionCopy));
+			case TABLE, VIEW, ROW -> items.add(new NuclrMenuResource(tr("menu.copy"), "F5", ActionCopy));
 			default -> {
 				// SCHEMA and the row-limit marker offer nothing on the function-key bar.
 			}
@@ -673,7 +678,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (target == null) {
 			return List.of();
 		}
-		var newConnection = NuclrContextMenuItem.builder().label("New Connection…").actionType(ActionNewConnection).build();
+		var newConnection = NuclrContextMenuItem.builder().label(tr("context.new.connection")).actionType(ActionNewConnection).build();
 		return switch (target.getKind()) {
 			case EXPLORER_ROOT -> List.of(newConnection);
 			case CONNECTION -> {
@@ -683,24 +688,24 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				String profileId = ((SqlNuclrResource) focusedResource).getProfileId();
 				yield List.of(
 						newConnection,
-						NuclrContextMenuItem.builder().label("Edit Connection…").actionType(ActionEditConnection).build(),
-						NuclrContextMenuItem.builder().label("Duplicate Connection").actionType(ActionDuplicateConnection)
+						NuclrContextMenuItem.builder().label(tr("context.edit.connection")).actionType(ActionEditConnection).build(),
+						NuclrContextMenuItem.builder().label(tr("context.duplicate.connection")).actionType(ActionDuplicateConnection)
 								.build(),
-						NuclrContextMenuItem.builder().label("Delete Connection…").actionType(ActionDeleteConnection)
+						NuclrContextMenuItem.builder().label(tr("context.delete.connection")).actionType(ActionDeleteConnection)
 								.destructive(true).build(),
 						NuclrContextMenuItem.separator(),
-						NuclrContextMenuItem.builder().label("Disconnect").actionType(ActionDisconnect)
+						NuclrContextMenuItem.builder().label(tr("context.disconnect")).actionType(ActionDisconnect)
 								.enabled(connectionRegistry.isConnected(profileId)).build());
 			}
 			case TABLE, VIEW -> List.of(
-					NuclrContextMenuItem.builder().label("Filter / Sort…").actionType(ActionFilterSort).build(),
-					NuclrContextMenuItem.builder().label("Count Rows").actionType(ActionCountRows).build(),
+					NuclrContextMenuItem.builder().label(tr("context.filter.sort")).actionType(ActionFilterSort).build(),
+					NuclrContextMenuItem.builder().label(tr("context.count.rows")).actionType(ActionCountRows).build(),
 					NuclrContextMenuItem.separator(),
-					NuclrContextMenuItem.builder().label("Export to CSV…").actionType(ActionExportCsv).build(),
-					NuclrContextMenuItem.builder().label("Copy as CSV").actionType(ActionCopyCsv).build());
+					NuclrContextMenuItem.builder().label(tr("context.export.csv")).actionType(ActionExportCsv).build(),
+					NuclrContextMenuItem.builder().label(tr("context.copy.csv")).actionType(ActionCopyCsv).build());
 			case ROW -> List.of(
-					NuclrContextMenuItem.builder().label("Export to CSV…").actionType(ActionExportCsv).build(),
-					NuclrContextMenuItem.builder().label("Copy as CSV").actionType(ActionCopyCsv).build());
+					NuclrContextMenuItem.builder().label(tr("context.export.csv")).actionType(ActionExportCsv).build(),
+					NuclrContextMenuItem.builder().label(tr("context.copy.csv")).actionType(ActionCopyCsv).build());
 			default -> List.of();
 		};
 	}
@@ -795,9 +800,8 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			return;
 		}
 		int choice = JOptionPane.showConfirmDialog(activeWindow(),
-				"Delete " + ids.size() + (ids.size() == 1 ? " connection" : " connections")
-						+ "? This only removes the saved profile — the database itself is untouched.",
-				"Delete Connection", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+				ids.size() == 1 ? tr("delete.confirm.one") : tr("delete.confirm.many", String.valueOf(ids.size())),
+				tr("delete.title"), JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
 		if (choice != JOptionPane.YES_OPTION) {
 			return;
 		}
@@ -868,13 +872,13 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			try (Statement statement = sql.openConnection().createStatement();
 					ResultSet rs = statement.executeQuery("SELECT COUNT(*) FROM " + sql.getQuotedTableRef())) {
 				long count = rs.next() ? rs.getLong(1) : 0;
-				showMessageDialog("Count Rows",
-						sql.getSchemaName() + "." + sql.getTableName() + " holds "
-								+ NumberFormat.getIntegerInstance().format(count)
-								+ (count == 1 ? " row." : " rows."));
+				String table = sql.getSchemaName() + "." + sql.getTableName();
+				showMessageDialog(tr("count.title"), count == 1
+						? tr("count.result.one", table)
+						: tr("count.result.many", table, NumberFormat.getIntegerInstance().format(count)));
 			} catch (Exception e) {
 				log.debug("Could not count rows in {}: {}", sql.getFullPath(), e.getMessage());
-				showErrorDialog("Count Rows", "Could not count the rows in \"" + sql.getName() + "\": " + e.getMessage());
+				showErrorDialog(tr("count.title"), tr("count.error", sql.getName(), e.getMessage()));
 			}
 		});
 	}
@@ -999,11 +1003,12 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		Thread.ofVirtual().name("sql-csv-file-export").start(() -> {
 			try {
 				long rows = exportCsvTo(selectedResources, focusedResource, destination);
-				showMessageDialog("Export to CSV", "Wrote " + NumberFormat.getIntegerInstance().format(rows)
-						+ (rows == 1 ? " row to " : " rows to ") + destination + ".");
+				showMessageDialog(tr("export.title"), rows == 1
+						? tr("export.wrote.one", destination.toString())
+						: tr("export.wrote.many", NumberFormat.getIntegerInstance().format(rows), destination.toString()));
 			} catch (Exception e) {
 				log.error("CSV export to {} failed: {}", destination, e.getMessage(), e);
-				showErrorDialog("Export to CSV", "Could not write " + destination + ": " + e.getMessage());
+				showErrorDialog(tr("export.title"), tr("export.error", destination.toString(), e.getMessage()));
 			}
 		});
 	}
@@ -1013,15 +1018,13 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			var outcome = new CsvExport.Written[1];
 			String csv = csvFor(selectedResources, focusedResource, ClipboardRowCap, outcome);
 			if (csv == null) {
-				showErrorDialog("Copy as CSV", "There is nothing here to copy as CSV.");
+				showErrorDialog(tr("copy.csv.title"), tr("copy.csv.nothing"));
 				return;
 			}
 			copyToClipboard(csv);
 			if (outcome[0] != null && outcome[0].truncated()) {
-				showMessageDialog("Copy as CSV", "Copied the first "
-						+ NumberFormat.getIntegerInstance().format(outcome[0].rows())
-						+ " rows. The table has more than the clipboard should hold — "
-						+ "use Export to CSV to get all of it.");
+				showMessageDialog(tr("copy.csv.title"), tr("copy.csv.truncated",
+						NumberFormat.getIntegerInstance().format(outcome[0].rows())));
 			}
 		});
 	}
@@ -1044,9 +1047,9 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		}
 		Supplier<Path> ask = () -> {
 			var chooser = new JFileChooser();
-			chooser.setDialogTitle("Export to CSV");
+			chooser.setDialogTitle(tr("export.title"));
 			chooser.setSelectedFile(new File(suggestedName));
-			chooser.setFileFilter(new FileNameExtensionFilter("CSV files", "csv"));
+			chooser.setFileFilter(new FileNameExtensionFilter(tr("export.filter.csv"), "csv"));
 			if (chooser.showSaveDialog(activeWindow()) != JFileChooser.APPROVE_OPTION) {
 				return null;
 			}
@@ -1055,7 +1058,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				chosen = new File(chosen.getParentFile(), chosen.getName() + ".csv");
 			}
 			if (chosen.exists() && JOptionPane.showConfirmDialog(activeWindow(),
-					chosen.getName() + " already exists. Replace it?", "Export to CSV",
+					tr("export.replace", chosen.getName()), tr("export.title"),
 					JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) {
 				return null;
 			}
@@ -1089,11 +1092,11 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		var whereField = new JTextField(current.where() == null ? "" : current.where(), 30);
 		var orderField = new JTextField(current.orderBy() == null ? "" : current.orderBy(), 30);
 		var panel = new JPanel(new java.awt.GridLayout(0, 1, 4, 4));
-		panel.add(new JLabel("WHERE (SQL fragment, without the WHERE keyword):"));
+		panel.add(new JLabel(tr("filter.where")));
 		panel.add(whereField);
-		panel.add(new JLabel("ORDER BY (SQL fragment, without ORDER BY):"));
+		panel.add(new JLabel(tr("filter.order.by")));
 		panel.add(orderField);
-		int choice = JOptionPane.showConfirmDialog(activeWindow(), panel, "Filter / Sort — " + sql.getTableName(),
+		int choice = JOptionPane.showConfirmDialog(activeWindow(), panel, tr("filter.title", sql.getTableName()),
 				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 		if (choice != JOptionPane.OK_OPTION) {
 			return;
@@ -1144,13 +1147,13 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		}
 		Supplier<PasswordPrompt> ask = () -> {
 			var passwordField = new JPasswordField(20);
-			var rememberBox = new JCheckBox("Remember password (OS keychain)", true);
+			var rememberBox = new JCheckBox(tr("password.remember"), true);
 			var panel = new JPanel(new BorderLayout(6, 6));
-			panel.add(new JLabel("Password for \"" + profile.getName() + "\" (" + profile.getUsername() + "):"),
+			panel.add(new JLabel(tr("password.prompt", profile.getName(), profile.getUsername())),
 					BorderLayout.NORTH);
 			panel.add(passwordField, BorderLayout.CENTER);
 			panel.add(rememberBox, BorderLayout.SOUTH);
-			int choice = JOptionPane.showConfirmDialog(activeWindow(), panel, "Connect",
+			int choice = JOptionPane.showConfirmDialog(activeWindow(), panel, tr("password.title"),
 					JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 			if (choice != JOptionPane.OK_OPTION) {
 				return null;
@@ -1179,8 +1182,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (failureReason == null) {
 			return;
 		}
-		showErrorDialog("Remember Password", "The connection was saved, but its password could not be stored: "
-				+ failureReason);
+		showErrorDialog(tr("password.not.stored.title"), tr("password.not.stored", failureReason));
 	}
 
 	private void showMessageDialog(String title, String message) {

@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.quickview;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -55,7 +57,7 @@ public final class RowFieldPanel extends JPanel {
 		add(textScrollPane, BorderLayout.CENTER);
 
 		jsonToggle.addActionListener(e -> render());
-		jsonToggle.setToolTipText("Show the row as raw JSON instead of a field list.");
+		jsonToggle.setToolTipText(tr("row.json.tooltip"));
 		applyTheme();
 	}
 

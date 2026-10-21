@@ -182,7 +182,7 @@ class TableGridPanelTest {
 	void theStatusLineSaysHowManyRowsArePicked() {
 		table.setRowSelectionInterval(0, 1);
 
-		assertEquals("3 rows — 2 selected", panel.statusText());
+		assertEquals("3 rows - 2 selected", panel.statusText());
 	}
 
 	@Test
@@ -199,6 +199,6 @@ class TableGridPanelTest {
 
 		rightClickOnRow(1);
 
-		assertEquals("3 rows — 3 selected", panel.statusText());
+		assertEquals("3 rows - 3 selected", panel.statusText());
 	}
 }

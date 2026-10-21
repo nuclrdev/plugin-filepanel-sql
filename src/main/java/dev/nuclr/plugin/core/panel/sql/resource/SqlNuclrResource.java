@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.resource;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -194,7 +196,7 @@ public final class SqlNuclrResource extends NuclrResource {
 		String safeKey = rowKey == null ? "" : rowKey.replace('/', '_');
 		r.setUuid("sql://" + profileId + "/" + schemaName + "/" + tableName + "/" + safeKey);
 		r.setFullPath(schemaName + "." + tableName + "[" + rowKey + "]");
-		r.setName(rowKey == null || rowKey.isEmpty() ? "(row)" : rowKey);
+		r.setName(rowKey == null || rowKey.isEmpty() ? tr("resource.row.unnamed") : rowKey);
 		r.setFolder(false);
 		for (String column : columnOrder) {
 			r.getMetadata().put(column, values.get(column));
@@ -210,7 +212,7 @@ public final class SqlNuclrResource extends NuclrResource {
 		r.tableName = tableName;
 		r.setUuid("sql://" + profileId + "/" + schemaName + "/" + tableName + "/#limit");
 		r.setFullPath("");
-		r.setName("⚠ row limit reached (" + rowLimit + ") — refine a filter to see more");
+		r.setName(tr("resource.row.limit", String.valueOf(rowLimit)));
 		r.setFolder(false);
 		r.setReadable(false);
 		return r;

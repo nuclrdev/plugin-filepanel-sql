@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.quickview;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Point;
@@ -127,7 +129,7 @@ public final class TableGridPanel extends JPanel {
 	}
 
 	public void show(SqlNuclrResource tableResource, AtomicBoolean cancelled) {
-		statusLabel.setText("Loading…");
+		statusLabel.setText(tr("grid.loading"));
 		model.setRowCount(0);
 		model.setColumnCount(0);
 
@@ -179,7 +181,7 @@ public final class TableGridPanel extends JPanel {
 				}
 			} catch (Exception e) {
 				log.debug("SQL quickview grid failed for {}: {}", tableResource.getFullPath(), e.getMessage());
-				SwingUtilities.invokeLater(() -> statusLabel.setText("Failed to load: " + e.getMessage()));
+				SwingUtilities.invokeLater(() -> statusLabel.setText(tr("grid.failed", e.getMessage())));
 			}
 		});
 	}
@@ -204,14 +206,12 @@ public final class TableGridPanel extends JPanel {
 	private void updateStatus() {
 		int rows = model.getRowCount();
 		int selected = table.getSelectedRowCount();
-		var status = new StringBuilder()
-				.append(rows)
-				.append(rows == 1 ? " row" : " rows");
+		var status = new StringBuilder(rows == 1 ? tr("grid.rows.one") : tr("grid.rows.many", String.valueOf(rows)));
 		if (truncatedPreview) {
-			status.append(" (preview truncated at ").append(PREVIEW_ROW_CAP).append(')');
+			status.append(' ').append(tr("grid.truncated", String.valueOf(PREVIEW_ROW_CAP)));
 		}
 		if (selected > 0) {
-			status.append(" — ").append(selected).append(" selected");
+			status.append(" - ").append(tr("grid.selected", String.valueOf(selected)));
 		}
 		statusLabel.setText(status.toString());
 	}

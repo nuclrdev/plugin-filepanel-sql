@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.quickview;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.awt.Toolkit;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
@@ -59,10 +61,10 @@ final class ClipboardContextMenu {
 	 *         around it — see {@link #install(JTable)} for why that matters
 	 */
 	static JPopupMenu install(JTextComponent text) {
-		var copy = new JMenuItem("Copy");
+		var copy = new JMenuItem(tr("clipboard.copy"));
 		copy.addActionListener(e -> text.copy());
 
-		var selectAll = new JMenuItem("Select All");
+		var selectAll = new JMenuItem(tr("clipboard.select.all"));
 		selectAll.addActionListener(e -> {
 			// Without focus the selection is painted in the inactive highlight, which on
 			// some themes is invisible; taking focus first makes the result obvious.
@@ -90,21 +92,21 @@ final class ClipboardContextMenu {
 	 *         answers a right-click instead of just the cells.
 	 */
 	static JPopupMenu install(JTable table) {
-		var copy = new JMenuItem("Copy");
+		var copy = new JMenuItem(tr("clipboard.copy"));
 		copy.addActionListener(e -> TransferHandler.getCopyAction()
 				.actionPerformed(new ActionEvent(table, ActionEvent.ACTION_PERFORMED, "copy")));
 
 		// Rows on their own paste into a spreadsheet as unlabelled columns; this is the
 		// version you want when the paste has to stand on its own.
-		var copyWithHeaders = new JMenuItem("Copy with Headers");
+		var copyWithHeaders = new JMenuItem(tr("clipboard.copy.with.headers"));
 		copyWithHeaders.addActionListener(e -> copyToClipboard(withHeaders(table)));
 
 		// Tab-separated text is what a spreadsheet wants; CSV is what a file or a tool that
 		// reads one wants. They are not the same thing, so both are offered.
-		var copyAsCsv = new JMenuItem("Copy as CSV");
+		var copyAsCsv = new JMenuItem(tr("clipboard.copy.csv"));
 		copyAsCsv.addActionListener(e -> copyToClipboard(asCsv(table)));
 
-		var selectAll = new JMenuItem("Select All");
+		var selectAll = new JMenuItem(tr("clipboard.select.all"));
 		selectAll.addActionListener(e -> {
 			table.requestFocusInWindow();
 			table.selectAll();

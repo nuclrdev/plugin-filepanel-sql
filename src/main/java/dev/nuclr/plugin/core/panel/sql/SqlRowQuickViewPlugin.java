@@ -47,6 +47,9 @@ public final class SqlRowQuickViewPlugin implements QuickViewNuclrPlugin {
 
 	@Override
 	public void preinit(NuclrPluginContext context) {
+		if (context != null) {
+			Messages.use(context.getLocale());
+		}
 		this.context = context;
 	}
 

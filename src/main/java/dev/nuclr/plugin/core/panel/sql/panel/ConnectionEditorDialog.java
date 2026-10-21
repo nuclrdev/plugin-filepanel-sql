@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.panel;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -66,15 +68,15 @@ public final class ConnectionEditorDialog extends JDialog {
 	private final JTextField portField = new JTextField(6);
 	private final JTextField databaseField = new JTextField(16);
 	private final JTextField jdbcUrlField = new JTextField(30);
-	private final JButton buildUrlButton = new JButton("Build from fields");
+	private final JButton buildUrlButton = new JButton(tr("editor.build.url"));
 	private final JTextField customClassField = new JTextField(24);
 	private final JTextField customJarField = new JTextField(24);
-	private final JButton browseJarButton = new JButton("Browse…");
+	private final JButton browseJarButton = new JButton(tr("editor.browse"));
 	private final JTextField usernameField = new JTextField(16);
 	private final JPasswordField passwordField = new JPasswordField(16);
-	private final JCheckBox showPasswordBox = new JCheckBox("Show");
-	private final JCheckBox rememberPasswordBox = new JCheckBox("Remember password (OS keychain)", true);
-	private final JCheckBox useSslBox = new JCheckBox("Use SSL");
+	private final JCheckBox showPasswordBox = new JCheckBox(tr("editor.show.password"));
+	private final JCheckBox rememberPasswordBox = new JCheckBox(tr("password.remember"), true);
+	private final JCheckBox useSslBox = new JCheckBox(tr("editor.use.ssl"));
 	/**
 	 * Status and errors. A {@link JLabel} cannot wrap, so a driver's failure message —
 	 * which routinely runs to several lines and carries the whole JDBC URL — set the
@@ -100,7 +102,7 @@ public final class ConnectionEditorDialog extends JDialog {
 	}
 
 	public static Result showNew(Window owner) {
-		var dialog = new ConnectionEditorDialog(owner, "New SQL Connection");
+		var dialog = new ConnectionEditorDialog(owner, tr("editor.title.new"));
 		// No driver is singled out as the default: the combo lands on the first catalogue
 		// entry, and the user picks what they are actually connecting to.
 		dialog.onDriverChanged();
@@ -109,7 +111,7 @@ public final class ConnectionEditorDialog extends JDialog {
 	}
 
 	public static Result showEdit(Window owner, ConnectionProfile existing, boolean hasStoredPassword) {
-		var dialog = new ConnectionEditorDialog(owner, "Edit SQL Connection");
+		var dialog = new ConnectionEditorDialog(owner, tr("editor.title.edit"));
 		dialog.populateFrom(existing, hasStoredPassword);
 		dialog.setVisible(true);
 		return dialog.result;
@@ -132,34 +134,27 @@ public final class ConnectionEditorDialog extends JDialog {
 		customJarField.setText(p.getCustomDriverJarPath());
 		rememberPasswordBox.setSelected(hasStoredPassword);
 		passwordField.setText("");
-		passwordField.setToolTipText(hasStoredPassword ? "Leave blank to keep the stored password" : null);
+		passwordField.setToolTipText(hasStoredPassword ? tr("editor.password.keep.tooltip") : null);
 		onDriverChanged();
 	}
 
 	private void installTooltips() {
-		nameField.setToolTipText("What this connection is called in the panel. Any name you like.");
-		driverCombo.setToolTipText("Built-in drivers are downloaded from Maven Central on first use and cached. "
-				+ "Choose \"Custom JDBC driver…\" to supply your own jar.");
-		hostField.setToolTipText("Server host name or address, used to build the JDBC URL.");
-		portField.setToolTipText("Server port. Left at the driver's conventional port unless you change it.");
-		databaseField.setToolTipText("Database (or catalogue) name, used to build the JDBC URL.");
-		buildUrlButton.setToolTipText("Fill the JDBC URL in from the host, port and database above, "
-				+ "overwriting whatever is there.");
-		jdbcUrlField.setToolTipText("The URL actually used to connect. Build it from the fields above, "
-				+ "or type or paste one directly.");
-		customClassField.setToolTipText("Fully qualified driver class, e.g. org.h2.Driver.");
-		customJarField.setToolTipText("Local jar containing that driver class. It is loaded in its own "
-				+ "classloader, so it cannot clash with anything else.");
-		browseJarButton.setToolTipText("Choose the driver jar.");
-		usernameField.setToolTipText("Leave blank when the URL carries its own credentials or the database "
-				+ "wants none — you will then never be asked for a password.");
-		passwordField.setToolTipText("Only used to connect. It is never written to the profile.");
-		showPasswordBox.setToolTipText("Show what you have typed, to check it before connecting.");
-		rememberPasswordBox.setToolTipText("Store the password in the OS credential store — Windows Credential "
-				+ "Manager, macOS Keychain, or the Linux Secret Service. Never in a settings file.");
-		useSslBox.setToolTipText("Ask the driver for an encrypted connection, using whichever property "
-				+ "the selected driver understands.");
-		statusArea.setToolTipText("Result of Test Connection, and any problem with the form.");
+		nameField.setToolTipText(tr("editor.name.tooltip"));
+		driverCombo.setToolTipText(tr("editor.driver.tooltip"));
+		hostField.setToolTipText(tr("editor.host.tooltip"));
+		portField.setToolTipText(tr("editor.port.tooltip"));
+		databaseField.setToolTipText(tr("editor.database.tooltip"));
+		buildUrlButton.setToolTipText(tr("editor.build.url.tooltip"));
+		jdbcUrlField.setToolTipText(tr("editor.url.tooltip"));
+		customClassField.setToolTipText(tr("editor.driver.class.tooltip"));
+		customJarField.setToolTipText(tr("editor.driver.jar.tooltip"));
+		browseJarButton.setToolTipText(tr("editor.browse.tooltip"));
+		usernameField.setToolTipText(tr("editor.username.tooltip"));
+		passwordField.setToolTipText(tr("editor.password.tooltip"));
+		showPasswordBox.setToolTipText(tr("editor.show.password.tooltip"));
+		rememberPasswordBox.setToolTipText(tr("editor.remember.tooltip"));
+		useSslBox.setToolTipText(tr("editor.use.ssl.tooltip"));
+		statusArea.setToolTipText(tr("editor.status.tooltip"));
 	}
 
 	private void buildUi() {
@@ -169,7 +164,7 @@ public final class ConnectionEditorDialog extends JDialog {
 					JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
 				super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 				if (value instanceof DriverCatalog.Entry entry) {
-					setText(entry.label());
+					setText(entry == DriverCatalog.CUSTOM ? tr("editor.driver.custom") : entry.label());
 				}
 				return this;
 			}
@@ -182,36 +177,36 @@ public final class ConnectionEditorDialog extends JDialog {
 		gbc.anchor = GridBagConstraints.WEST;
 
 		int row = 0;
-		addRow(gbc, row++, "Name:", nameField);
-		addRow(gbc, row++, "Driver:", driverCombo);
+		addRow(gbc, row++, tr("editor.label.name"), nameField);
+		addRow(gbc, row++, tr("editor.label.driver"), driverCombo);
 
 		var hostPortPanel = new JPanel(new BorderLayout(6, 0));
 		hostPortPanel.add(hostField, BorderLayout.CENTER);
 		var portWrap = new JPanel(new BorderLayout(4, 0));
-		portWrap.add(new JLabel("Port:"), BorderLayout.WEST);
+		portWrap.add(new JLabel(tr("editor.label.port")), BorderLayout.WEST);
 		portWrap.add(portField, BorderLayout.CENTER);
 		hostPortPanel.add(portWrap, BorderLayout.EAST);
-		addRow(gbc, row++, "Host:", hostPortPanel);
+		addRow(gbc, row++, tr("editor.label.host"), hostPortPanel);
 
-		addRow(gbc, row++, "Database:", databaseField);
+		addRow(gbc, row++, tr("editor.label.database"), databaseField);
 
 		var urlPanel = new JPanel(new BorderLayout(6, 0));
 		urlPanel.add(jdbcUrlField, BorderLayout.CENTER);
 		urlPanel.add(buildUrlButton, BorderLayout.EAST);
 		addRow(gbc, row++, "JDBC URL:", urlPanel);
 
-		addRow(gbc, row++, "Driver class:", customClassField);
+		addRow(gbc, row++, tr("editor.label.driver.class"), customClassField);
 		var jarPanel = new JPanel(new BorderLayout(6, 0));
 		jarPanel.add(customJarField, BorderLayout.CENTER);
 		jarPanel.add(browseJarButton, BorderLayout.EAST);
-		addRow(gbc, row++, "Driver jar:", jarPanel);
+		addRow(gbc, row++, tr("editor.label.driver.jar"), jarPanel);
 
-		addRow(gbc, row++, "Username:", usernameField);
+		addRow(gbc, row++, tr("editor.label.username"), usernameField);
 
 		var passwordPanel = new JPanel(new BorderLayout(6, 0));
 		passwordPanel.add(passwordField, BorderLayout.CENTER);
 		passwordPanel.add(showPasswordBox, BorderLayout.EAST);
-		addRow(gbc, row++, "Password:", passwordPanel);
+		addRow(gbc, row++, tr("editor.label.password"), passwordPanel);
 
 		gbc.gridx = 1;
 		gbc.gridy = row++;
@@ -232,9 +227,9 @@ public final class ConnectionEditorDialog extends JDialog {
 		add(statusScroll, gbc);
 
 		var buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-		var testButton = new JButton("Test Connection");
-		var okButton = new JButton("OK");
-		var cancelButton = new JButton("Cancel");
+		var testButton = new JButton(tr("editor.test"));
+		var okButton = new JButton(tr("common.ok"));
+		var cancelButton = new JButton(tr("common.cancel"));
 		buttons.add(testButton);
 		buttons.add(okButton);
 		buttons.add(cancelButton);
@@ -351,7 +346,7 @@ public final class ConnectionEditorDialog extends JDialog {
 				distinct.add(message);
 			}
 		}
-		return String.join("\n\nCaused by: ", distinct);
+		return String.join("\n\n" + tr("editor.caused.by") + " ", distinct);
 	}
 
 	private void addRow(GridBagConstraints gbc, int row, String label, JComponent field) {
@@ -403,8 +398,8 @@ public final class ConnectionEditorDialog extends JDialog {
 
 	private void browseForJar() {
 		var chooser = new JFileChooser();
-		chooser.setDialogTitle("Choose JDBC driver jar");
-		chooser.setFileFilter(new FileNameExtensionFilter("Jar files", "jar"));
+		chooser.setDialogTitle(tr("editor.jar.chooser.title"));
+		chooser.setFileFilter(new FileNameExtensionFilter(tr("editor.jar.filter"), "jar"));
 		if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
 			customJarField.setText(chooser.getSelectedFile().getAbsolutePath());
 		}
@@ -428,7 +423,7 @@ public final class ConnectionEditorDialog extends JDialog {
 	}
 
 	private void testConnection() {
-		setStatus(Status.PROGRESS, "Testing…");
+		setStatus(Status.PROGRESS, tr("editor.testing"));
 		ConnectionProfile profile = buildProfile();
 		String password = new String(passwordField.getPassword());
 		setInputEnabled(false);
@@ -439,10 +434,10 @@ public final class ConnectionEditorDialog extends JDialog {
 				var opened = SqlConnector.connect(profile, password.isBlank() ? null : password);
 				opened.close();
 				status = Status.SUCCESS;
-				message = "Connection succeeded.";
+				message = tr("editor.test.ok");
 			} catch (Exception e) {
 				status = Status.FAILURE;
-				message = "Failed: " + describeFailure(e);
+				message = tr("editor.test.failed", describeFailure(e));
 			}
 			Status finalStatus = status;
 			String finalMessage = message;
@@ -467,11 +462,11 @@ public final class ConnectionEditorDialog extends JDialog {
 
 	private void onOk() {
 		if (nameField.getText().isBlank()) {
-			setStatus(Status.FAILURE, "Name is required.");
+			setStatus(Status.FAILURE, tr("editor.name.required"));
 			return;
 		}
 		if (jdbcUrlField.getText().isBlank()) {
-			setStatus(Status.FAILURE, "JDBC URL is required.");
+			setStatus(Status.FAILURE, tr("editor.url.required"));
 			return;
 		}
 		String password = new String(passwordField.getPassword());

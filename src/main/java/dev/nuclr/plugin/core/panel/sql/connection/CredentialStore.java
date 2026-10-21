@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.connection;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.util.Objects;
 
 import dev.nuclr.platform.NuclrCredentialException;
@@ -74,7 +76,7 @@ public final class CredentialStore {
 	 */
 	public String savePassword(String profileId, char[] password) {
 		if (!isUsableKey(profileId)) {
-			return "This connection has no usable credential key.";
+			return tr("credentials.no.key");
 		}
 		String secret = password == null ? "" : new String(password);
 		if (secret.isBlank()) {
