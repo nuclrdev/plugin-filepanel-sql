@@ -867,6 +867,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				.port(original.getPort())
 				.database(original.getDatabase())
 				.username(original.getUsername())
+				.passwordCommand(original.getPasswordCommand())
 				.useSsl(original.isUseSsl())
 				.sshEnabled(original.isSshEnabled())
 				.sshHost(original.getSshHost())

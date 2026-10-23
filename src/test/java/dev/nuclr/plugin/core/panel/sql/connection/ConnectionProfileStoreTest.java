@@ -83,7 +83,8 @@ class ConnectionProfileStoreTest {
 		store.add(shop().build());
 
 		String json = settings.get(PluginIds.PLUGIN_ID, "profiles.json");
-		assertFalse(json.contains("password"), json);
+		// passwordCommand is the command line that prints a password, never the password.
+		assertFalse(json.replace("\"passwordCommand\"", "").contains("password"), json);
 		assertFalse(json.contains("driverLabel"), json);
 		assertFalse(json.contains("displayTarget"), json);
 	}

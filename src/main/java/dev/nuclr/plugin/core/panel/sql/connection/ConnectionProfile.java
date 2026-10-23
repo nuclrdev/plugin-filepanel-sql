@@ -69,6 +69,13 @@ public class ConnectionProfile implements Serializable {
 
 	private String username;
 
+	/**
+	 * A command whose output is the password, e.g. {@code gcloud auth print-access-token};
+	 * blank to use a typed or stored password. Run on every connect (see
+	 * {@link PasswordCommand}), so a short-lived token is always fresh.
+	 */
+	private String passwordCommand;
+
 	private boolean useSsl;
 
 	/**
@@ -116,7 +123,11 @@ public class ConnectionProfile implements Serializable {
 
 	/** Whether connecting should ask for a password when none is stored. */
 	public boolean needsPassword() {
-		return username != null && !username.isBlank();
+		return username != null && !username.isBlank() && !hasPasswordCommand();
+	}
+
+	public boolean hasPasswordCommand() {
+		return passwordCommand != null && !passwordCommand.isBlank();
 	}
 
 	/**

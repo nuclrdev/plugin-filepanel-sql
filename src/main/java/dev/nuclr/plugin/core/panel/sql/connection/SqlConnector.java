@@ -60,6 +60,10 @@ public final class SqlConnector {
 	 *                    when the profile goes through an SSH tunnel
 	 */
 	public static Opened connect(ConnectionProfile profile, String password, String sshPassword) throws Exception {
+		if (profile.hasPasswordCommand()) {
+			// Run before the tunnel opens, so a broken command fails before any SSH prompt.
+			password = PasswordCommand.run(profile.getPasswordCommand());
+		}
 		if (!profile.isSshEnabled()) {
 			return connect(profile, profile.getJdbcUrl(), password, null);
 		}

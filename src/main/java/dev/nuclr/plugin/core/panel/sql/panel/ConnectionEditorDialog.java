@@ -20,6 +20,7 @@ package dev.nuclr.plugin.core.panel.sql.panel;
 import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.FlowLayout;
@@ -31,6 +32,7 @@ import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 
+import javax.swing.ButtonGroup;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -43,6 +45,7 @@ import javax.swing.KeyStroke;
 import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
@@ -77,6 +80,11 @@ public final class ConnectionEditorDialog extends JDialog {
 	private final JTextField usernameField = new JTextField(16);
 	private final JPasswordField passwordField = new JPasswordField(16);
 	private final JCheckBox showPasswordBox = new JCheckBox(tr("editor.show.password"));
+	private final JRadioButton typedPasswordRadio = new JRadioButton(tr("editor.password.typed"), true);
+	private final JRadioButton commandPasswordRadio = new JRadioButton(tr("editor.password.command"));
+	private final JTextField passwordCommandField = new JTextField(24);
+	private final CardLayout passwordCards = new CardLayout();
+	private final JPanel passwordCardPanel = new JPanel(passwordCards);
 	private final JCheckBox rememberPasswordBox = new JCheckBox(tr("password.remember"), true);
 	private final JCheckBox useSslBox = new JCheckBox(tr("editor.use.ssl"));
 	private final JCheckBox sshEnabledBox = new JCheckBox(tr("editor.ssh.enabled"));
@@ -141,6 +149,10 @@ public final class ConnectionEditorDialog extends JDialog {
 		portField.setText(p.getPort());
 		databaseField.setText(p.getDatabase());
 		usernameField.setText(p.getUsername());
+		passwordCommandField.setText(p.getPasswordCommand());
+		commandPasswordRadio.setSelected(p.hasPasswordCommand());
+		typedPasswordRadio.setSelected(!p.hasPasswordCommand());
+		onPasswordModeChanged();
 		useSslBox.setSelected(p.isUseSsl());
 		customClassField.setText(p.getCustomDriverClassName());
 		customJarField.setText(p.getCustomDriverJarPath());
@@ -175,6 +187,9 @@ public final class ConnectionEditorDialog extends JDialog {
 		usernameField.setToolTipText(tr("editor.username.tooltip"));
 		passwordField.setToolTipText(tr("editor.password.tooltip"));
 		showPasswordBox.setToolTipText(tr("editor.show.password.tooltip"));
+		typedPasswordRadio.setToolTipText(tr("editor.password.typed.tooltip"));
+		commandPasswordRadio.setToolTipText(tr("editor.password.command.tooltip"));
+		passwordCommandField.setToolTipText(tr("editor.password.command.field.tooltip"));
 		rememberPasswordBox.setToolTipText(tr("editor.remember.tooltip"));
 		useSslBox.setToolTipText(tr("editor.use.ssl.tooltip"));
 		statusArea.setToolTipText(tr("editor.status.tooltip"));
@@ -226,10 +241,23 @@ public final class ConnectionEditorDialog extends JDialog {
 
 		addRow(form, gbc, row++, tr("editor.label.username"), usernameField);
 
+		var passwordModes = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+		var modeGroup = new ButtonGroup();
+		for (var radio : new JRadioButton[] { typedPasswordRadio, commandPasswordRadio }) {
+			modeGroup.add(radio);
+			passwordModes.add(radio);
+			radio.addActionListener(e -> onPasswordModeChanged());
+		}
+		addRow(form, gbc, row++, tr("editor.label.password"), passwordModes);
+
+		// One row that is either the password box or the command, so the form keeps its
+		// height whichever is chosen.
 		var passwordPanel = new JPanel(new BorderLayout(6, 0));
 		passwordPanel.add(passwordField, BorderLayout.CENTER);
 		passwordPanel.add(showPasswordBox, BorderLayout.EAST);
-		addRow(form, gbc, row++, tr("editor.label.password"), passwordPanel);
+		passwordCardPanel.add(passwordPanel, "typed");
+		passwordCardPanel.add(passwordCommandField, "command");
+		addRow(form, gbc, row++, null, passwordCardPanel);
 
 		addRow(form, gbc, row++, null, rememberPasswordBox);
 		addRow(form, gbc, row++, null, useSslBox);
@@ -437,6 +465,13 @@ public final class ConnectionEditorDialog extends JDialog {
 		return hostPortPanel;
 	}
 
+	private void onPasswordModeChanged() {
+		boolean command = commandPasswordRadio.isSelected();
+		passwordCards.show(passwordCardPanel, command ? "command" : "typed");
+		// A command's output is fresh on every connect and never stored.
+		rememberPasswordBox.setEnabled(!command && typedPasswordRadio.isEnabled());
+	}
+
 	private void onSshToggled() {
 		boolean on = sshEnabledBox.isSelected() && sshEnabledBox.isEnabled();
 		for (var c : new JComponent[] {
@@ -515,6 +550,7 @@ public final class ConnectionEditorDialog extends JDialog {
 				.port(portField.getText().trim())
 				.database(databaseField.getText().trim())
 				.username(usernameField.getText().trim())
+				.passwordCommand(commandPasswordRadio.isSelected() ? passwordCommandField.getText().trim() : null)
 				.useSsl(useSslBox.isSelected())
 				.sshEnabled(sshEnabledBox.isSelected())
 				.sshHost(sshHostField.getText().trim())
@@ -556,6 +592,7 @@ public final class ConnectionEditorDialog extends JDialog {
 		for (var c : new JComponent[] {
 				nameField, driverCombo, hostField, portField, databaseField, jdbcUrlField,
 				customClassField, customJarField, usernameField, passwordField, showPasswordBox,
+				typedPasswordRadio, commandPasswordRadio, passwordCommandField,
 				rememberPasswordBox, useSslBox, sshEnabledBox, sshHostField, sshPortField, sshUsernameField,
 				sshKeyField, browseKeyButton, sshPasswordField, rememberSshPasswordBox }) {
 			c.setEnabled(enabled);
@@ -563,6 +600,7 @@ public final class ConnectionEditorDialog extends JDialog {
 		if (enabled) {
 			onDriverChanged(); // restore the driver-specific disabled fields
 			onSshToggled();
+			onPasswordModeChanged();
 		}
 	}
 
@@ -575,6 +613,11 @@ public final class ConnectionEditorDialog extends JDialog {
 			setStatus(Status.FAILURE, tr("editor.url.required"));
 			return;
 		}
+		if (commandPasswordRadio.isSelected() && passwordCommandField.getText().isBlank()) {
+			tabs.setSelectedIndex(0);
+			setStatus(Status.FAILURE, tr("editor.password.command.required"));
+			return;
+		}
 		if (sshEnabledBox.isSelected() && sshHostField.getText().isBlank()) {
 			tabs.setSelectedIndex(1);
 			setStatus(Status.FAILURE, tr("editor.ssh.host.required"));
@@ -585,9 +628,10 @@ public final class ConnectionEditorDialog extends JDialog {
 			setStatus(Status.FAILURE, tr("ssh.error.no.target"));
 			return;
 		}
-		String password = new String(passwordField.getPassword());
+		String password = commandPasswordRadio.isSelected() ? "" : new String(passwordField.getPassword());
 		String sshPassword = new String(sshPasswordField.getPassword());
-		result = new Result(buildProfile(), password.isBlank() ? null : password, rememberPasswordBox.isSelected(),
+		result = new Result(buildProfile(), password.isBlank() ? null : password,
+				rememberPasswordBox.isSelected() && !commandPasswordRadio.isSelected(),
 				sshPassword.isEmpty() ? null : sshPassword, rememberSshPasswordBox.isSelected());
 		dispose();
 	}
