@@ -103,6 +103,14 @@ public final class CredentialStore {
 		}
 	}
 
+	/**
+	 * The key a profile's SSH password (or key passphrase) is stored under, beside the
+	 * database password stored under the bare profile id.
+	 */
+	public static String sshKey(String profileId) {
+		return profileId == null ? null : profileId + ":ssh";
+	}
+
 	/** @return whether a password is currently stored for {@code profileId}. */
 	public boolean hasPassword(String profileId) {
 		return loadPassword(profileId) != null;

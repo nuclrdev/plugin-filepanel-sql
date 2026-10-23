@@ -488,10 +488,24 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (profile == null) {
 			throw new IllegalStateException("Unknown connection: " + profileId);
 		}
+		String sshKey = CredentialStore.sshKey(profileId);
+		String sshPassword = profile.isSshEnabled() ? credentialStore.loadPassword(sshKey) : null;
+		boolean rememberSsh = false;
+		if (sshPassword == null && profile.needsSshPassword()) {
+			// Asked first: the tunnel is the first thing that has to open.
+			PasswordPrompt prompt = promptForPassword(tr("ssh.password.prompt", profile.getName(),
+					sshAddress(profile)));
+			if (prompt == null) {
+				throw new ConnectCancelled();
+			}
+			sshPassword = prompt.password();
+			rememberSsh = prompt.remember();
+		}
 		String password = credentialStore.loadPassword(profileId);
 		boolean remember = false;
 		if (password == null && profile.needsPassword()) {
-			PasswordPrompt prompt = promptForPassword(profile);
+			PasswordPrompt prompt = promptForPassword(
+					tr("password.prompt", profile.getName(), profile.getUsername()));
 			if (prompt == null) {
 				throw new ConnectCancelled();
 			}
@@ -501,9 +515,12 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 
 		// A single error dialog for the whole failure is raised by openResource; adding one
 		// here as well would make every failed connect pop two.
-		ConnectionRegistry.Session session = connectionRegistry.connect(profile, password);
+		ConnectionRegistry.Session session = connectionRegistry.connect(profile, password, sshPassword);
 		if (remember && password != null) {
 			credentialStore.savePassword(profileId, password.toCharArray());
+		}
+		if (rememberSsh && sshPassword != null) {
+			credentialStore.savePassword(sshKey, sshPassword.toCharArray());
 		}
 		return session;
 	}
@@ -757,6 +774,10 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (result.rememberPassword() && result.password() != null) {
 			warnIfNotStored(credentialStore.savePassword(profile.getId(), result.password().toCharArray()));
 		}
+		if (result.rememberSshPassword() && result.sshPassword() != null) {
+			warnIfNotStored(credentialStore.savePassword(CredentialStore.sshKey(profile.getId()),
+					result.sshPassword().toCharArray()));
+		}
 		putRefresh(data);
 	}
 
@@ -769,8 +790,11 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (existing == null) {
 			return;
 		}
+		String sshKey = CredentialStore.sshKey(profileId);
 		boolean hasStoredPassword = credentialStore.hasPassword(profileId);
-		ConnectionEditorDialog.Result result = ConnectionEditorDialog.showEdit(activeWindow(), existing, hasStoredPassword);
+		boolean hasStoredSshPassword = credentialStore.hasPassword(sshKey);
+		ConnectionEditorDialog.Result result = ConnectionEditorDialog.showEdit(activeWindow(), existing,
+				hasStoredPassword, hasStoredSshPassword);
 		if (result == null) {
 			return;
 		}
@@ -780,6 +804,11 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			warnIfNotStored(credentialStore.savePassword(profileId, result.password().toCharArray()));
 		} else if (!result.rememberPassword()) {
 			credentialStore.deletePassword(profileId);
+		}
+		if (result.sshPassword() != null && result.rememberSshPassword()) {
+			warnIfNotStored(credentialStore.savePassword(sshKey, result.sshPassword().toCharArray()));
+		} else if (!result.rememberSshPassword()) {
+			credentialStore.deletePassword(sshKey);
 		}
 		putRefresh(data);
 	}
@@ -809,6 +838,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			connectionRegistry.disconnect(id);
 			profileStore.delete(id);
 			credentialStore.deletePassword(id);
+			credentialStore.deletePassword(CredentialStore.sshKey(id));
 		}
 		putRefresh(data);
 	}
@@ -838,12 +868,21 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 				.database(original.getDatabase())
 				.username(original.getUsername())
 				.useSsl(original.isUseSsl())
+				.sshEnabled(original.isSshEnabled())
+				.sshHost(original.getSshHost())
+				.sshPort(original.getSshPort())
+				.sshUsername(original.getSshUsername())
+				.sshKeyPath(original.getSshKeyPath())
 				.build();
 		ConnectionProfile saved = profileStore.add(copy);
 
 		String password = credentialStore.loadPassword(profileId);
 		if (password != null) {
 			credentialStore.savePassword(saved.getId(), password.toCharArray());
+		}
+		String sshPassword = credentialStore.loadPassword(CredentialStore.sshKey(profileId));
+		if (sshPassword != null) {
+			credentialStore.savePassword(CredentialStore.sshKey(saved.getId()), sshPassword.toCharArray());
 		}
 		putRefresh(data);
 	}
@@ -1137,20 +1176,24 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 	// Small Swing helpers
 	// ------------------------------------------------------------------
 
+	private static String sshAddress(ConnectionProfile profile) {
+		String user = profile.getSshUsername();
+		return (user == null || user.isBlank() ? "" : user.trim() + "@") + profile.getSshHost();
+	}
+
 	/** @return the entered password (blank becomes {@code null}), or {@code null} if cancelled. */
-	private PasswordPrompt promptForPassword(ConnectionProfile profile) {
+	private PasswordPrompt promptForPassword(String prompt) {
 		if (GraphicsEnvironment.isHeadless()) {
 			// Nothing can answer a prompt without a display, so treat it as declined rather
 			// than blocking the listing behind a dialog nobody will ever see.
-			log.warn("Cannot ask for the password to \"{}\" without a display.", profile.getName());
+			log.warn("Cannot ask without a display: {}", prompt);
 			return null;
 		}
 		Supplier<PasswordPrompt> ask = () -> {
 			var passwordField = new JPasswordField(20);
 			var rememberBox = new JCheckBox(tr("password.remember"), true);
 			var panel = new JPanel(new BorderLayout(6, 6));
-			panel.add(new JLabel(tr("password.prompt", profile.getName(), profile.getUsername())),
-					BorderLayout.NORTH);
+			panel.add(new JLabel(prompt), BorderLayout.NORTH);
 			panel.add(passwordField, BorderLayout.CENTER);
 			panel.add(rememberBox, BorderLayout.SOUTH);
 			int choice = JOptionPane.showConfirmDialog(activeWindow(), panel, tr("password.title"),

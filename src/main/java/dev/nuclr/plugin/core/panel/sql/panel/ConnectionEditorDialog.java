@@ -44,6 +44,7 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
@@ -58,7 +59,8 @@ import dev.nuclr.plugin.core.panel.sql.driver.DriverCatalog;
 /** F7 "New Connection…" / F4 "Edit Connection…" form. */
 public final class ConnectionEditorDialog extends JDialog {
 
-	public record Result(ConnectionProfile profile, String password, boolean rememberPassword) {
+	public record Result(ConnectionProfile profile, String password, boolean rememberPassword,
+			String sshPassword, boolean rememberSshPassword) {
 	}
 
 	private final JTextField nameField = new JTextField(24);
@@ -77,6 +79,15 @@ public final class ConnectionEditorDialog extends JDialog {
 	private final JCheckBox showPasswordBox = new JCheckBox(tr("editor.show.password"));
 	private final JCheckBox rememberPasswordBox = new JCheckBox(tr("password.remember"), true);
 	private final JCheckBox useSslBox = new JCheckBox(tr("editor.use.ssl"));
+	private final JCheckBox sshEnabledBox = new JCheckBox(tr("editor.ssh.enabled"));
+	private final JTextField sshHostField = new JTextField(16);
+	private final JTextField sshPortField = new JTextField(6);
+	private final JTextField sshUsernameField = new JTextField(16);
+	private final JTextField sshKeyField = new JTextField(24);
+	private final JButton browseKeyButton = new JButton(tr("editor.browse"));
+	private final JPasswordField sshPasswordField = new JPasswordField(16);
+	private final JCheckBox rememberSshPasswordBox = new JCheckBox(tr("password.remember"), true);
+	private final JTabbedPane tabs = new JTabbedPane();
 	/**
 	 * Status and errors. A {@link JLabel} cannot wrap, so a driver's failure message —
 	 * which routinely runs to several lines and carries the whole JDBC URL — set the
@@ -110,14 +121,15 @@ public final class ConnectionEditorDialog extends JDialog {
 		return dialog.result;
 	}
 
-	public static Result showEdit(Window owner, ConnectionProfile existing, boolean hasStoredPassword) {
+	public static Result showEdit(Window owner, ConnectionProfile existing, boolean hasStoredPassword,
+			boolean hasStoredSshPassword) {
 		var dialog = new ConnectionEditorDialog(owner, tr("editor.title.edit"));
-		dialog.populateFrom(existing, hasStoredPassword);
+		dialog.populateFrom(existing, hasStoredPassword, hasStoredSshPassword);
 		dialog.setVisible(true);
 		return dialog.result;
 	}
 
-	private void populateFrom(ConnectionProfile p, boolean hasStoredPassword) {
+	private void populateFrom(ConnectionProfile p, boolean hasStoredPassword, boolean hasStoredSshPassword) {
 		idBeingEdited = p.getId();
 		nameField.setText(p.getName());
 		driverCombo.setSelectedItem(DriverCatalog.byKey(p.getDriverKey()));
@@ -135,7 +147,18 @@ public final class ConnectionEditorDialog extends JDialog {
 		rememberPasswordBox.setSelected(hasStoredPassword);
 		passwordField.setText("");
 		passwordField.setToolTipText(hasStoredPassword ? tr("editor.password.keep.tooltip") : null);
+		sshEnabledBox.setSelected(p.isSshEnabled());
+		sshHostField.setText(p.getSshHost());
+		if (p.getSshPort() != null && !p.getSshPort().isBlank()) {
+			sshPortField.setText(p.getSshPort());
+		}
+		sshUsernameField.setText(p.getSshUsername());
+		sshKeyField.setText(p.getSshKeyPath());
+		rememberSshPasswordBox.setSelected(hasStoredSshPassword);
+		sshPasswordField.setText("");
+		sshPasswordField.setToolTipText(hasStoredSshPassword ? tr("editor.password.keep.tooltip") : null);
 		onDriverChanged();
+		onSshToggled();
 	}
 
 	private void installTooltips() {
@@ -155,6 +178,14 @@ public final class ConnectionEditorDialog extends JDialog {
 		rememberPasswordBox.setToolTipText(tr("editor.remember.tooltip"));
 		useSslBox.setToolTipText(tr("editor.use.ssl.tooltip"));
 		statusArea.setToolTipText(tr("editor.status.tooltip"));
+		sshEnabledBox.setToolTipText(tr("editor.ssh.enabled.tooltip"));
+		sshHostField.setToolTipText(tr("editor.ssh.host.tooltip"));
+		sshPortField.setToolTipText(tr("editor.ssh.port.tooltip"));
+		sshUsernameField.setToolTipText(tr("editor.ssh.username.tooltip"));
+		sshKeyField.setToolTipText(tr("editor.ssh.key.tooltip"));
+		browseKeyButton.setToolTipText(tr("editor.ssh.browse.tooltip"));
+		sshPasswordField.setToolTipText(tr("editor.ssh.password.tooltip"));
+		rememberSshPasswordBox.setToolTipText(tr("editor.remember.tooltip"));
 	}
 
 	private void buildUi() {
@@ -170,59 +201,76 @@ public final class ConnectionEditorDialog extends JDialog {
 			}
 		});
 
-		setLayout(new GridBagLayout());
+		var form = new JPanel(new GridBagLayout());
 		var gbc = new GridBagConstraints();
 		gbc.insets = new Insets(4, 6, 4, 6);
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 		gbc.anchor = GridBagConstraints.WEST;
 
 		int row = 0;
-		addRow(gbc, row++, tr("editor.label.name"), nameField);
-		addRow(gbc, row++, tr("editor.label.driver"), driverCombo);
-
-		var hostPortPanel = new JPanel(new BorderLayout(6, 0));
-		hostPortPanel.add(hostField, BorderLayout.CENTER);
-		var portWrap = new JPanel(new BorderLayout(4, 0));
-		portWrap.add(new JLabel(tr("editor.label.port")), BorderLayout.WEST);
-		portWrap.add(portField, BorderLayout.CENTER);
-		hostPortPanel.add(portWrap, BorderLayout.EAST);
-		addRow(gbc, row++, tr("editor.label.host"), hostPortPanel);
-
-		addRow(gbc, row++, tr("editor.label.database"), databaseField);
+		addRow(form, gbc, row++, tr("editor.label.name"), nameField);
+		addRow(form, gbc, row++, tr("editor.label.driver"), driverCombo);
+		addRow(form, gbc, row++, tr("editor.label.host"), withPort(hostField, portField));
+		addRow(form, gbc, row++, tr("editor.label.database"), databaseField);
 
 		var urlPanel = new JPanel(new BorderLayout(6, 0));
 		urlPanel.add(jdbcUrlField, BorderLayout.CENTER);
 		urlPanel.add(buildUrlButton, BorderLayout.EAST);
-		addRow(gbc, row++, "JDBC URL:", urlPanel);
+		addRow(form, gbc, row++, "JDBC URL:", urlPanel);
 
-		addRow(gbc, row++, tr("editor.label.driver.class"), customClassField);
+		addRow(form, gbc, row++, tr("editor.label.driver.class"), customClassField);
 		var jarPanel = new JPanel(new BorderLayout(6, 0));
 		jarPanel.add(customJarField, BorderLayout.CENTER);
 		jarPanel.add(browseJarButton, BorderLayout.EAST);
-		addRow(gbc, row++, tr("editor.label.driver.jar"), jarPanel);
+		addRow(form, gbc, row++, tr("editor.label.driver.jar"), jarPanel);
 
-		addRow(gbc, row++, tr("editor.label.username"), usernameField);
+		addRow(form, gbc, row++, tr("editor.label.username"), usernameField);
 
 		var passwordPanel = new JPanel(new BorderLayout(6, 0));
 		passwordPanel.add(passwordField, BorderLayout.CENTER);
 		passwordPanel.add(showPasswordBox, BorderLayout.EAST);
-		addRow(gbc, row++, tr("editor.label.password"), passwordPanel);
+		addRow(form, gbc, row++, tr("editor.label.password"), passwordPanel);
 
-		gbc.gridx = 1;
-		gbc.gridy = row++;
+		addRow(form, gbc, row++, null, rememberPasswordBox);
+		addRow(form, gbc, row++, null, useSslBox);
+		pushToTop(form, gbc, row);
+
+		var ssh = new JPanel(new GridBagLayout());
+		row = 0;
+		addRow(ssh, gbc, row++, null, sshEnabledBox);
+		addRow(ssh, gbc, row++, tr("editor.label.ssh.host"), withPort(sshHostField, sshPortField));
+		addRow(ssh, gbc, row++, tr("editor.label.username"), sshUsernameField);
+		var keyPanel = new JPanel(new BorderLayout(6, 0));
+		keyPanel.add(sshKeyField, BorderLayout.CENTER);
+		keyPanel.add(browseKeyButton, BorderLayout.EAST);
+		addRow(ssh, gbc, row++, tr("editor.label.ssh.key"), keyPanel);
+		addRow(ssh, gbc, row++, tr("editor.label.ssh.password"), sshPasswordField);
+		addRow(ssh, gbc, row++, null, rememberSshPasswordBox);
+		var sshHint = new JLabel(tr("editor.ssh.hint"));
+		sshHint.setForeground(UIManager.getColor("Label.disabledForeground"));
+		addRow(ssh, gbc, row++, null, sshHint);
+		pushToTop(ssh, gbc, row);
+		sshPortField.setText("22");
+
+		tabs.addTab(tr("editor.tab.connection"), form);
+		tabs.addTab(tr("editor.tab.ssh"), ssh);
+		tabs.setMnemonicAt(0, KeyEvent.VK_N);
+		tabs.setMnemonicAt(1, KeyEvent.VK_H);
+
+		setLayout(new GridBagLayout());
+		gbc.gridx = 0;
+		gbc.gridy = 0;
 		gbc.gridwidth = 1;
 		gbc.weightx = 1;
-		add(rememberPasswordBox, gbc);
-		gbc.gridy = row++;
-		add(useSslBox, gbc);
+		gbc.weighty = 0;
+		gbc.fill = GridBagConstraints.BOTH;
+		add(tabs, gbc);
+		row = 1;
 
 		// The status area is the one thing worth growing when the dialog is made taller:
 		// that is where a long failure needs the room.
-		gbc.gridx = 0;
 		gbc.gridy = row++;
-		gbc.gridwidth = 2;
 		gbc.weighty = 1;
-		gbc.fill = GridBagConstraints.BOTH;
 		buildStatusArea();
 		add(statusScroll, gbc);
 
@@ -233,14 +281,14 @@ public final class ConnectionEditorDialog extends JDialog {
 		buttons.add(testButton);
 		buttons.add(okButton);
 		buttons.add(cancelButton);
-		gbc.gridx = 0;
 		gbc.gridy = row;
-		gbc.gridwidth = 2;
 		gbc.weighty = 0;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 		add(buttons, gbc);
 
 		driverCombo.addActionListener(e -> onDriverChanged());
+		sshEnabledBox.addActionListener(e -> onSshToggled());
+		browseKeyButton.addActionListener(e -> browseForKey());
 		buildUrlButton.addActionListener(e -> jdbcUrlField.setText(buildUrl()));
 		browseJarButton.addActionListener(e -> browseForJar());
 		testButton.addActionListener(e -> testConnection());
@@ -259,6 +307,8 @@ public final class ConnectionEditorDialog extends JDialog {
 		buildUrlButton.setMnemonic(KeyEvent.VK_B);
 		rememberPasswordBox.setMnemonic(KeyEvent.VK_R);
 		useSslBox.setMnemonic(KeyEvent.VK_S);
+		sshEnabledBox.setMnemonic(KeyEvent.VK_U);
+		onSshToggled();
 
 		// A dialog that will not close on Escape is the kind of thing that makes software
 		// feel unfinished; JDialog gives no such binding on its own.
@@ -349,17 +399,64 @@ public final class ConnectionEditorDialog extends JDialog {
 		return String.join("\n\n" + tr("editor.caused.by") + " ", distinct);
 	}
 
-	private void addRow(GridBagConstraints gbc, int row, String label, JComponent field) {
-		gbc.gridx = 0;
+	/** @param label the row's label, or {@code null} for a field under the field column alone */
+	private static void addRow(JPanel panel, GridBagConstraints gbc, int row, String label, JComponent field) {
 		gbc.gridy = row;
 		gbc.gridwidth = 1;
-		gbc.weightx = 0;
-		add(new JLabel(label), gbc);
+		gbc.weighty = 0;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
+		if (label != null) {
+			gbc.gridx = 0;
+			gbc.weightx = 0;
+			panel.add(new JLabel(label), gbc);
+		}
 		gbc.gridx = 1;
 		// Only the field column grows, so a wider dialog means wider inputs and a wider
 		// wrap for the status area rather than a form marooned in empty space.
 		gbc.weightx = 1;
-		add(field, gbc);
+		panel.add(field, gbc);
+	}
+
+	/** The two tabs differ in height; this keeps the shorter one's rows at the top. */
+	private static void pushToTop(JPanel panel, GridBagConstraints gbc, int row) {
+		gbc.gridx = 0;
+		gbc.gridy = row;
+		gbc.gridwidth = 2;
+		gbc.weighty = 1;
+		panel.add(new JPanel(), gbc);
+		gbc.weighty = 0;
+	}
+
+	private static JPanel withPort(JTextField host, JTextField port) {
+		var hostPortPanel = new JPanel(new BorderLayout(6, 0));
+		hostPortPanel.add(host, BorderLayout.CENTER);
+		var portWrap = new JPanel(new BorderLayout(4, 0));
+		portWrap.add(new JLabel(tr("editor.label.port")), BorderLayout.WEST);
+		portWrap.add(port, BorderLayout.CENTER);
+		hostPortPanel.add(portWrap, BorderLayout.EAST);
+		return hostPortPanel;
+	}
+
+	private void onSshToggled() {
+		boolean on = sshEnabledBox.isSelected() && sshEnabledBox.isEnabled();
+		for (var c : new JComponent[] {
+				sshHostField, sshPortField, sshUsernameField, sshKeyField, browseKeyButton,
+				sshPasswordField, rememberSshPasswordBox }) {
+			c.setEnabled(on);
+		}
+	}
+
+	private void browseForKey() {
+		var chooser = new JFileChooser();
+		chooser.setDialogTitle(tr("editor.ssh.key.chooser.title"));
+		chooser.setFileHidingEnabled(false);
+		var sshDir = new java.io.File(System.getProperty("user.home"), ".ssh");
+		if (sshDir.isDirectory()) {
+			chooser.setCurrentDirectory(sshDir);
+		}
+		if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+			sshKeyField.setText(chooser.getSelectedFile().getAbsolutePath());
+		}
 	}
 
 	private void onDriverChanged() {
@@ -419,6 +516,11 @@ public final class ConnectionEditorDialog extends JDialog {
 				.database(databaseField.getText().trim())
 				.username(usernameField.getText().trim())
 				.useSsl(useSslBox.isSelected())
+				.sshEnabled(sshEnabledBox.isSelected())
+				.sshHost(sshHostField.getText().trim())
+				.sshPort(sshPortField.getText().trim())
+				.sshUsername(sshUsernameField.getText().trim())
+				.sshKeyPath(sshKeyField.getText().trim())
 				.build();
 	}
 
@@ -426,12 +528,14 @@ public final class ConnectionEditorDialog extends JDialog {
 		setStatus(Status.PROGRESS, tr("editor.testing"));
 		ConnectionProfile profile = buildProfile();
 		String password = new String(passwordField.getPassword());
+		String sshPassword = new String(sshPasswordField.getPassword());
 		setInputEnabled(false);
 		Thread.ofVirtual().name("sql-test-connection").start(() -> {
 			Status status;
 			String message;
 			try {
-				var opened = SqlConnector.connect(profile, password.isBlank() ? null : password);
+				var opened = SqlConnector.connect(profile, password.isBlank() ? null : password,
+						sshPassword.isEmpty() ? null : sshPassword);
 				opened.close();
 				status = Status.SUCCESS;
 				message = tr("editor.test.ok");
@@ -452,11 +556,13 @@ public final class ConnectionEditorDialog extends JDialog {
 		for (var c : new JComponent[] {
 				nameField, driverCombo, hostField, portField, databaseField, jdbcUrlField,
 				customClassField, customJarField, usernameField, passwordField, showPasswordBox,
-				rememberPasswordBox, useSslBox }) {
+				rememberPasswordBox, useSslBox, sshEnabledBox, sshHostField, sshPortField, sshUsernameField,
+				sshKeyField, browseKeyButton, sshPasswordField, rememberSshPasswordBox }) {
 			c.setEnabled(enabled);
 		}
 		if (enabled) {
 			onDriverChanged(); // restore the driver-specific disabled fields
+			onSshToggled();
 		}
 	}
 
@@ -469,8 +575,29 @@ public final class ConnectionEditorDialog extends JDialog {
 			setStatus(Status.FAILURE, tr("editor.url.required"));
 			return;
 		}
+		if (sshEnabledBox.isSelected() && sshHostField.getText().isBlank()) {
+			tabs.setSelectedIndex(1);
+			setStatus(Status.FAILURE, tr("editor.ssh.host.required"));
+			return;
+		}
+		if (sshEnabledBox.isSelected() && !hasTunnelTarget()) {
+			tabs.setSelectedIndex(0);
+			setStatus(Status.FAILURE, tr("ssh.error.no.target"));
+			return;
+		}
 		String password = new String(passwordField.getPassword());
-		result = new Result(buildProfile(), password.isBlank() ? null : password, rememberPasswordBox.isSelected());
+		String sshPassword = new String(sshPasswordField.getPassword());
+		result = new Result(buildProfile(), password.isBlank() ? null : password, rememberPasswordBox.isSelected(),
+				sshPassword.isEmpty() ? null : sshPassword, rememberSshPasswordBox.isSelected());
 		dispose();
+	}
+
+	/**
+	 * A tunnel goes to the database host and port as the SSH server sees them, which are
+	 * the Host and Port fields; a custom driver has neither, so it cannot be tunnelled.
+	 */
+	private boolean hasTunnelTarget() {
+		var entry = (DriverCatalog.Entry) driverCombo.getSelectedItem();
+		return entry != null && !"custom".equals(entry.key()) && !hostField.getText().isBlank();
 	}
 }

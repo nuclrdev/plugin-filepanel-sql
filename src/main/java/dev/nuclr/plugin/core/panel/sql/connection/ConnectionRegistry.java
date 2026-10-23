@@ -33,8 +33,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public final class ConnectionRegistry {
 
-	/** @param quoteString the connection's SQL identifier quote character, e.g. {@code "\""}. */
-	public record Session(Connection connection, DriverClassLoader driverLoader, String quoteString) {
+	/**
+	 * @param quoteString the connection's SQL identifier quote character, e.g. {@code "\""}.
+	 * @param tunnel      the SSH tunnel the connection runs through, or {@code null}
+	 */
+	public record Session(Connection connection, DriverClassLoader driverLoader, String quoteString,
+			SshTunnel tunnel) {
 	}
 
 	private final Map<String, Session> sessions = new ConcurrentHashMap<>();
@@ -56,15 +60,16 @@ public final class ConnectionRegistry {
 	}
 
 	/** Connects if not already connected; otherwise returns the existing session. */
-	public synchronized Session connect(ConnectionProfile profile, String password) throws Exception {
+	public synchronized Session connect(ConnectionProfile profile, String password, String sshPassword)
+			throws Exception {
 		Session existing = sessions.get(profile.getId());
 		if (existing != null) {
 			return existing;
 		}
 
-		SqlConnector.Opened opened = SqlConnector.connect(profile, password);
+		SqlConnector.Opened opened = SqlConnector.connect(profile, password, sshPassword);
 		String quoteString = identifierQuoteString(opened.connection());
-		Session session = new Session(opened.connection(), opened.driverLoader(), quoteString);
+		Session session = new Session(opened.connection(), opened.driverLoader(), quoteString, opened.tunnel());
 		sessions.put(profile.getId(), session);
 		return session;
 	}
@@ -98,5 +103,8 @@ public final class ConnectionRegistry {
 			log.debug("Error closing SQL connection: {}", e.getMessage());
 		}
 		session.driverLoader().close();
+		if (session.tunnel() != null) {
+			session.tunnel().close();
+		}
 	}
 }

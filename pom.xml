@@ -51,6 +51,37 @@
 			<scope>provided</scope>
 		</dependency>
 
+		<!-- Apache MINA SSHD for connections reached through an SSH tunnel (a bastion
+		     host), the same library and version filepanel-net uses. Not provided by the
+		     host, so it ships in the bundle's lib/. sshd-putty reads PuTTY PPK keys; the
+		     Bouncy Castle and eddsa jars are optional in sshd-putty, and without them an
+		     encrypted PPK v3 or an ed25519 PPK key silently parses to no keys at all. -->
+		<dependency>
+			<groupId>org.apache.sshd</groupId>
+			<artifactId>sshd-core</artifactId>
+			<version>2.12.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.sshd</groupId>
+			<artifactId>sshd-putty</artifactId>
+			<version>2.12.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.77</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcpkix-jdk18on</artifactId>
+			<version>1.77</version>
+		</dependency>
+		<dependency>
+			<groupId>net.i2p.crypto</groupId>
+			<artifactId>eddsa</artifactId>
+			<version>0.3.0</version>
+		</dependency>
+
 		<!-- No JDBC driver ships in this bundle. Every driver is fetched from Maven
 		     Central on first use and cached under ~/.nuclr/plugins-data (see
 		     driver/DriverDownloader), or supplied by the user as a local jar.

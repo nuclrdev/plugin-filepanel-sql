@@ -17,6 +17,8 @@
 */
 package dev.nuclr.plugin.core.panel.sql.connection;
 
+import static dev.nuclr.plugin.core.panel.sql.Messages.tr;
+
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.util.Properties;
@@ -33,7 +35,8 @@ import dev.nuclr.plugin.core.panel.sql.driver.DriverDownloader;
  */
 public final class SqlConnector {
 
-	public record Opened(Connection connection, DriverClassLoader driverLoader) {
+	/** @param tunnel the SSH tunnel the connection runs through, or {@code null} for a direct one. */
+	public record Opened(Connection connection, DriverClassLoader driverLoader, SshTunnel tunnel) {
 
 		public void close() {
 			try {
@@ -42,13 +45,48 @@ public final class SqlConnector {
 				// best-effort
 			}
 			driverLoader.close();
+			if (tunnel != null) {
+				tunnel.close();
+			}
 		}
 	}
 
 	private SqlConnector() {
 	}
 
-	public static Opened connect(ConnectionProfile profile, String password) throws Exception {
+	/**
+	 * @param password    the database password, or {@code null}
+	 * @param sshPassword the SSH password or key passphrase, or {@code null}; only read
+	 *                    when the profile goes through an SSH tunnel
+	 */
+	public static Opened connect(ConnectionProfile profile, String password, String sshPassword) throws Exception {
+		if (!profile.isSshEnabled()) {
+			return connect(profile, profile.getJdbcUrl(), password, null);
+		}
+		String targetHost = profile.getHost() == null ? "" : profile.getHost().trim();
+		if (targetHost.isEmpty()) {
+			throw new IllegalArgumentException(tr("ssh.error.no.target"));
+		}
+		int targetPort = SshTunnel.parsePort(profile.getPort(),
+				DriverCatalog.byKey(profile.getDriverKey()).defaultPort());
+		if (targetPort <= 0) {
+			throw new IllegalArgumentException(tr("ssh.error.no.target"));
+		}
+		// Checked before logging in, so a URL that cannot be redirected fails at once
+		// rather than after a round of SSH host-key and password prompts.
+		SshTunnel.rewriteUrl(profile.getJdbcUrl(), targetHost, targetPort, 1);
+		SshTunnel tunnel = SshTunnel.open(profile, sshPassword, targetHost, targetPort);
+		try {
+			String url = SshTunnel.rewriteUrl(profile.getJdbcUrl(), targetHost, targetPort, tunnel.localPort());
+			return connect(profile, url, password, tunnel);
+		} catch (Exception e) {
+			tunnel.close();
+			throw e;
+		}
+	}
+
+	private static Opened connect(ConnectionProfile profile, String url, String password, SshTunnel tunnel)
+			throws Exception {
 		DriverClassLoader driverLoader = loadDriver(profile);
 
 		Properties props = new Properties();
@@ -66,8 +104,8 @@ public final class SqlConnector {
 		}
 
 		try {
-			Connection connection = driverLoader.connect(profile.getJdbcUrl(), props);
-			return new Opened(connection, driverLoader);
+			Connection connection = driverLoader.connect(url, props);
+			return new Opened(connection, driverLoader, tunnel);
 		} catch (Exception e) {
 			driverLoader.close();
 			throw e;

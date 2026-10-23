@@ -193,6 +193,9 @@ public final class SqlActions {
 			connection.put("driver", profile.getDriverLabel());
 			connection.put("url", redactUrl(profile.getJdbcUrl()));
 			connection.put("username", blankToNull(profile.getUsername()));
+			if (profile.isSshEnabled()) {
+				connection.put("sshTunnel", blankToNull(profile.getSshHost()));
+			}
 			connections.add(connection);
 		}
 		connections.sort((a, b) -> String.valueOf(a.get("name")).compareToIgnoreCase(String.valueOf(b.get("name"))));

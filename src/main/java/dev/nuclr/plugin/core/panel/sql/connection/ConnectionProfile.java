@@ -71,6 +71,24 @@ public class ConnectionProfile implements Serializable {
 
 	private boolean useSsl;
 
+	/**
+	 * Reach the database through an SSH tunnel: {@link #host} and {@link #port} are then
+	 * the database as the SSH server sees it, and the JDBC URL is pointed at the local
+	 * end of the tunnel on connect (see {@link SshTunnel}).
+	 */
+	private boolean sshEnabled;
+
+	private String sshHost;
+
+	/** Blank means 22. */
+	private String sshPort;
+
+	/** Blank means the local user name, as {@code ssh} itself does. */
+	private String sshUsername;
+
+	/** Private key file; blank to log in with the SSH password alone. */
+	private String sshKeyPath;
+
 	@JsonIgnore
 	public String getDriverLabel() {
 		if ("custom".equals(driverKey)) {
@@ -92,11 +110,21 @@ public class ConnectionProfile implements Serializable {
 	/** Shown as the "Host" column for the connection entry in the explorer root listing. */
 	@JsonIgnore
 	public String getDisplayTarget() {
-		return jdbcUrl == null ? "" : jdbcUrl;
+		String url = jdbcUrl == null ? "" : jdbcUrl;
+		return sshEnabled && sshHost != null && !sshHost.isBlank() ? url + " via " + sshHost : url;
 	}
 
 	/** Whether connecting should ask for a password when none is stored. */
 	public boolean needsPassword() {
 		return username != null && !username.isBlank();
+	}
+
+	/**
+	 * Whether connecting should ask for an SSH password when none is stored. A key file
+	 * logs in on its own, so only a password-only tunnel prompts; an encrypted key's
+	 * passphrase is entered in the editor instead.
+	 */
+	public boolean needsSshPassword() {
+		return sshEnabled && (sshKeyPath == null || sshKeyPath.isBlank());
 	}
 }
