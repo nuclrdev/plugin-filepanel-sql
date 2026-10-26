@@ -16,7 +16,8 @@
       "pageUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
       "docUrl": "https://github.com/nuclrdev/plugin-filepanel-sql",
       "developer": "Official",
-      "singleton": false
+      "singleton": false,
+      "connections": true
     },
     {
       "class": "dev.nuclr.plugin.core.panel.sql.SqlRowQuickViewPlugin",
