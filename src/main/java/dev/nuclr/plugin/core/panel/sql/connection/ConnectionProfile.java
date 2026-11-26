@@ -33,7 +33,7 @@ import lombok.NoArgsConstructor;
  * {@link CredentialStore}).
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class ConnectionProfile implements Serializable {

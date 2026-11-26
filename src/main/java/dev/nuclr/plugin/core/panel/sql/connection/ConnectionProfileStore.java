@@ -66,11 +66,45 @@ public final class ConnectionProfileStore {
 
 	public synchronized void saveAll(List<ConnectionProfile> profiles) {
 		try {
-			String json = mapper.writeValueAsString(profiles);
-			settings.set(PluginIds.PLUGIN_ID, KEY_PROFILES_JSON, json);
+			write(profiles);
 		} catch (Exception e) {
 			log.error("Failed to save SQL connection profiles.", e);
 		}
+	}
+
+	/**
+	 * Append {@code profiles} to the saved list in one write, keeping every profile already
+	 * there. Unlike {@link #saveAll} this throws when it cannot: when the saved list cannot be
+	 * read (writing would replace it with only the new profiles) or when the write fails. On
+	 * a throw nothing was changed. Used by an import, whose caller cleans up on failure.
+	 */
+	public synchronized void addAll(List<ConnectionProfile> profiles) {
+		var all = loadStrictly();
+		all.addAll(profiles);
+		write(all);
+	}
+
+	/** Remove the profiles with these ids in one write; throws like {@link #addAll}. */
+	public synchronized void removeAll(java.util.Collection<String> ids) {
+		var all = loadStrictly();
+		all.removeIf(p -> p.getId() != null && ids.contains(p.getId()));
+		write(all);
+	}
+
+	private List<ConnectionProfile> loadStrictly() {
+		String json = settings.get(PluginIds.PLUGIN_ID, KEY_PROFILES_JSON);
+		if (json == null || json.isBlank()) {
+			return new ArrayList<>();
+		}
+		try {
+			return new ArrayList<>(List.of(mapper.readValue(json, ConnectionProfile[].class)));
+		} catch (Exception e) {
+			throw new IllegalStateException("The saved SQL connections cannot be read; not changing them", e);
+		}
+	}
+
+	private void write(List<ConnectionProfile> profiles) {
+		settings.set(PluginIds.PLUGIN_ID, KEY_PROFILES_JSON, mapper.writeValueAsString(profiles));
 	}
 
 	public synchronized ConnectionProfile findById(String id) {

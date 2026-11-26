@@ -111,6 +111,14 @@ public final class CredentialStore {
 		return profileId == null ? null : profileId + ":ssh";
 	}
 
+	/**
+	 * The key the secrets taken out of a profile's JDBC URL are stored under (see
+	 * {@link JdbcUrlSecrets}); merged back into the URL on connect.
+	 */
+	public static String urlKey(String profileId) {
+		return profileId == null ? null : profileId + ":url";
+	}
+
 	/** @return whether a password is currently stored for {@code profileId}. */
 	public boolean hasPassword(String profileId) {
 		return loadPassword(profileId) != null;

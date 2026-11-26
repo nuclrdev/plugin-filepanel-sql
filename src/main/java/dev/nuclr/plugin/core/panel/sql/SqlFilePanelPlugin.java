@@ -72,6 +72,8 @@ import dev.nuclr.plugin.core.panel.sql.connection.ConnectionProfileStore;
 import dev.nuclr.plugin.core.panel.sql.connection.ConnectionRegistry;
 import dev.nuclr.plugin.core.panel.sql.connection.CredentialStore;
 import dev.nuclr.plugin.core.panel.sql.connection.Schemas;
+import dev.nuclr.plugin.core.panel.sql.connection.UrlSecretKeeper;
+import dev.nuclr.plugin.core.panel.sql.transfer.SqlTransfer;
 import dev.nuclr.plugin.core.panel.sql.actions.SqlActions;
 import dev.nuclr.plugin.core.panel.sql.csv.CsvExport;
 import dev.nuclr.plugin.core.panel.sql.panel.ConnectionEditorDialog;
@@ -139,6 +141,8 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 	private CredentialStore credentialStore;
 	private ConnectionRegistry connectionRegistry;
 	private SqlActions actions;
+	private UrlSecretKeeper urlSecrets;
+	private SqlTransfer transfer;
 
 	private volatile boolean focused;
 	private volatile SqlNuclrResource currentResource;
@@ -154,6 +158,8 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		this.profileStore = new ConnectionProfileStore(context.getSettings());
 		this.credentialStore = new CredentialStore(context.getCredentialStore());
 		this.connectionRegistry = new ConnectionRegistry();
+		this.urlSecrets = new UrlSecretKeeper(profileStore, credentialStore);
+		this.transfer = new SqlTransfer(profileStore, credentialStore);
 		this.actions = new SqlActions(profileStore, this::actionSession, connectionRegistry::disconnect);
 		this.currentResource = SqlNuclrResource.explorerRoot();
 		log.info("SQL Explorer panel plugin loaded");
@@ -488,6 +494,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (profile == null) {
 			throw new IllegalStateException("Unknown connection: " + profileId);
 		}
+		profile = urlSecrets.withSecrets(profile);
 		String sshKey = CredentialStore.sshKey(profileId);
 		String sshPassword = profile.isSshEnabled() ? credentialStore.loadPassword(sshKey) : null;
 		boolean rememberSsh = false;
@@ -731,6 +738,12 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 	public void act(BaseNuclrPlugin other, String actionType, List<NuclrResource> selectedResources,
 			NuclrResource focusedResource, Map<String, Object> data, NuclrPluginCallback callback) {
 
+		// Configs > Export / Import in Commander: saved connections in and out.
+		if (SqlTransfer.handles(actionType)) {
+			transfer.handle(actionType, data);
+			return;
+		}
+
 		// Actions declared in actions.json (agents, command palette). They need no pane,
 		// selection or open resource, so they run the same on the headless instance the
 		// commander keeps for them - whose connections are its own, never a pane's.
@@ -771,6 +784,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			return;
 		}
 		ConnectionProfile profile = profileStore.add(result.profile());
+		urlSecrets.keep(profile);
 		if (result.rememberPassword() && result.password() != null) {
 			warnIfNotStored(credentialStore.savePassword(profile.getId(), result.password().toCharArray()));
 		}
@@ -790,6 +804,8 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (existing == null) {
 			return;
 		}
+		// Shown with its URL secrets, so saving splits them again and keeps them in step.
+		existing = urlSecrets.withSecrets(existing);
 		String sshKey = CredentialStore.sshKey(profileId);
 		boolean hasStoredPassword = credentialStore.hasPassword(profileId);
 		boolean hasStoredSshPassword = credentialStore.hasPassword(sshKey);
@@ -800,6 +816,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		}
 		connectionRegistry.disconnect(profileId); // the URL/credentials may have changed
 		profileStore.update(result.profile());
+		urlSecrets.keep(result.profile());
 		if (result.password() != null && result.rememberPassword()) {
 			warnIfNotStored(credentialStore.savePassword(profileId, result.password().toCharArray()));
 		} else if (!result.rememberPassword()) {
@@ -839,6 +856,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 			profileStore.delete(id);
 			credentialStore.deletePassword(id);
 			credentialStore.deletePassword(CredentialStore.sshKey(id));
+			urlSecrets.delete(id);
 		}
 		putRefresh(data);
 	}
@@ -885,6 +903,7 @@ public final class SqlFilePanelPlugin implements FilePanelNuclrPlugin {
 		if (sshPassword != null) {
 			credentialStore.savePassword(CredentialStore.sshKey(saved.getId()), sshPassword.toCharArray());
 		}
+		urlSecrets.copy(profileId, saved.getId());
 		putRefresh(data);
 	}
 
